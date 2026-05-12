@@ -29,10 +29,10 @@ export default async function MarketDataPage() {
         {rows.length === 0 ? (
           <div className="grid min-h-80 place-items-center text-center">
             <div>
-              <p className="text-lg font-semibold text-stone-950">
+              <p className="empty-title text-lg font-semibold">
                 No instruments yet.
               </p>
-              <p className="mt-2 text-sm text-stone-500">
+              <p className="quiet-text mt-2 text-sm">
                 Import a run with a Yahoo symbol like ES=F to seed market data.
               </p>
             </div>
@@ -54,7 +54,7 @@ export default async function MarketDataPage() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.instrumentId}>
-                  <td className="font-semibold text-stone-950">{row.symbol}</td>
+                  <td className="strong-text font-semibold">{row.symbol}</td>
                   <td>{row.yahooSymbol ?? "n/a"}</td>
                   <td>{row.tradingDate ?? "n/a"}</td>
                   <td>{formatCurrency(row.close)}</td>

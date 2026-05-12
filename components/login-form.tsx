@@ -41,7 +41,7 @@ export function LoginForm() {
         placeholder="Password"
         type="password"
       />
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="text-sm text-rose-300">{error}</p> : null}
       <button className="primary-button" disabled={pending} type="submit">
         {pending ? "Checking..." : "Enter"}
       </button>

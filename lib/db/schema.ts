@@ -14,6 +14,26 @@ export const bots = sqliteTable("bots", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const botModes = sqliteTable(
+  "bot_modes",
+  {
+    id: text("id").primaryKey(),
+    botId: text("bot_id")
+      .notNull()
+      .references(() => bots.id),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    botModeNameIndex: uniqueIndex("bot_modes_bot_name_idx").on(
+      table.botId,
+      table.name,
+    ),
+  }),
+);
+
 export const instruments = sqliteTable("instruments", {
   id: text("id").primaryKey(),
   symbol: text("symbol").notNull().unique(),
@@ -32,6 +52,7 @@ export const runs = sqliteTable(
     botId: text("bot_id")
       .notNull()
       .references(() => bots.id),
+    botModeId: text("bot_mode_id").references(() => botModes.id),
     instrumentId: text("instrument_id")
       .notNull()
       .references(() => instruments.id),
@@ -141,6 +162,7 @@ export const goldenBaselines = sqliteTable(
     botId: text("bot_id")
       .notNull()
       .references(() => bots.id),
+    botModeId: text("bot_mode_id").references(() => botModes.id),
     instrumentId: text("instrument_id")
       .notNull()
       .references(() => instruments.id),
@@ -152,8 +174,9 @@ export const goldenBaselines = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (table) => ({
-    scopeIndex: uniqueIndex("golden_baselines_scope_idx").on(
+    scopeIndex: uniqueIndex("golden_baselines_scope_mode_idx").on(
       table.botId,
+      table.botModeId,
       table.instrumentId,
       table.timeframe,
     ),

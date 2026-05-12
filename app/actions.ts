@@ -8,6 +8,10 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { calculateDailyMetrics, calculateRunMetrics } from "@/lib/analytics";
 import {
+  createBot,
+  createBotMode,
+  createInstrument,
+  getInstrument,
   insertImportedRun,
   listInstruments,
   saveCombo,
@@ -18,16 +22,14 @@ import { parseNinjaTraderSummaryCsv } from "@/lib/imports/ninjatrader";
 import { fetchYahooDailyBars } from "@/lib/market/yahoo";
 
 const uploadSchema = z.object({
-  botName: z.string().min(1),
-  instrumentSymbol: z.string().min(1),
-  yahooSymbol: z.string().optional().default(""),
+  botId: z.string().min(1),
+  botModeId: z.string().min(1),
+  instrumentId: z.string().min(1),
   timeframe: z.string().min(1),
   runName: z.string().min(1),
   settingsJson: z.string().optional().default("{}"),
   tags: z.string().optional().default(""),
   notes: z.string().optional().default(""),
-  exchangeTimezone: z.string().min(1).default("America/New_York"),
-  sessionStartHour: z.coerce.number().int().min(0).max(23).default(18),
 });
 
 export async function uploadRunCsv(formData: FormData) {
@@ -40,22 +42,28 @@ export async function uploadRunCsv(formData: FormData) {
   }
 
   const fields = uploadSchema.parse({
-    botName: formData.get("botName"),
-    instrumentSymbol: formData.get("instrumentSymbol"),
-    yahooSymbol: formData.get("yahooSymbol"),
+    botId: formData.get("botId"),
+    botModeId: formData.get("botModeId"),
+    instrumentId: formData.get("instrumentId"),
     timeframe: formData.get("timeframe"),
     runName: formData.get("runName"),
     settingsJson: formData.get("settingsJson") || "{}",
     tags: formData.get("tags"),
     notes: formData.get("notes"),
-    exchangeTimezone: formData.get("exchangeTimezone") || "America/New_York",
-    sessionStartHour: formData.get("sessionStartHour") || 18,
   });
 
   JSON.parse(fields.settingsJson);
+  const instrument = await getInstrument(fields.instrumentId);
+
+  if (!instrument) {
+    throw new Error("Choose a valid instrument.");
+  }
 
   const rawCsv = await file.text();
-  const parsed = parseNinjaTraderSummaryCsv(rawCsv, fields.sessionStartHour);
+  const parsed = parseNinjaTraderSummaryCsv(
+    rawCsv,
+    instrument.sessionStartHour,
+  );
   const metrics = calculateRunMetrics(parsed.trades);
   const dailyMetrics = calculateDailyMetrics(parsed.trades);
   const runId = await insertImportedRun({
@@ -72,6 +80,53 @@ export async function uploadRunCsv(formData: FormData) {
 
   revalidatePath("/runs");
   redirect(`/runs/${runId}`);
+}
+
+export async function createBotAction(formData: FormData) {
+  await requireUser();
+
+  await createBot({
+    name: String(formData.get("name") ?? ""),
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/runs/new");
+}
+
+export async function createBotModeAction(formData: FormData) {
+  await requireUser();
+
+  await createBotMode({
+    botId: String(formData.get("botId") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    description: String(formData.get("description") ?? ""),
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/runs/new");
+}
+
+export async function createInstrumentAction(formData: FormData) {
+  await requireUser();
+
+  await createInstrument({
+    symbol: String(formData.get("symbol") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    yahooSymbol: String(formData.get("yahooSymbol") ?? ""),
+    exchangeTimezone:
+      String(formData.get("exchangeTimezone") ?? "").trim() ||
+      "America/New_York",
+    sessionStartHour: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(23)
+      .parse(formData.get("sessionStartHour") || 18),
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/runs/new");
+  revalidatePath("/market-data");
 }
 
 export async function setGoldenRunAction(formData: FormData) {

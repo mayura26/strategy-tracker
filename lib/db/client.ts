@@ -5,8 +5,8 @@ import "server-only";
 import * as schema from "@/lib/db/schema";
 
 const databaseUrl =
-  process.env.TURSO_DATABASE_URL ?? "file:strategy-tracker.local.db";
-const authToken = process.env.TURSO_AUTH_TOKEN;
+  process.env.TURSO_DATABASE_URL?.trim() || "file:strategy-tracker.local.db";
+const authToken = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
 
 export const client = createClient({
   url: databaseUrl,
@@ -31,6 +31,18 @@ async function initializeSchema() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS bot_modes (
+      id TEXT PRIMARY KEY,
+      bot_id TEXT NOT NULL REFERENCES bots(id),
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS bot_modes_bot_name_idx
+      ON bot_modes(bot_id, name);
+
     CREATE TABLE IF NOT EXISTS instruments (
       id TEXT PRIMARY KEY,
       symbol TEXT NOT NULL UNIQUE,
@@ -45,6 +57,7 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS runs (
       id TEXT PRIMARY KEY,
       bot_id TEXT NOT NULL REFERENCES bots(id),
+      bot_mode_id TEXT REFERENCES bot_modes(id),
       instrument_id TEXT NOT NULL REFERENCES instruments(id),
       name TEXT NOT NULL,
       timeframe TEXT NOT NULL,
@@ -125,6 +138,7 @@ async function initializeSchema() {
     CREATE TABLE IF NOT EXISTS golden_baselines (
       id TEXT PRIMARY KEY,
       bot_id TEXT NOT NULL REFERENCES bots(id),
+      bot_mode_id TEXT REFERENCES bot_modes(id),
       instrument_id TEXT NOT NULL REFERENCES instruments(id),
       timeframe TEXT NOT NULL,
       run_id TEXT NOT NULL REFERENCES runs(id),
@@ -132,8 +146,7 @@ async function initializeSchema() {
       updated_at TEXT NOT NULL
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS golden_baselines_scope_idx
-      ON golden_baselines(bot_id, instrument_id, timeframe);
+    DROP INDEX IF EXISTS golden_baselines_scope_idx;
 
     CREATE TABLE IF NOT EXISTS market_bars (
       id TEXT PRIMARY KEY,
@@ -166,4 +179,34 @@ async function initializeSchema() {
       updated_at TEXT NOT NULL
     );
   `);
+
+  await addColumnIfMissing(
+    "runs",
+    "bot_mode_id",
+    "TEXT REFERENCES bot_modes(id)",
+  );
+  await addColumnIfMissing(
+    "golden_baselines",
+    "bot_mode_id",
+    "TEXT REFERENCES bot_modes(id)",
+  );
+  await client.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS golden_baselines_scope_mode_idx
+      ON golden_baselines(bot_id, bot_mode_id, instrument_id, timeframe)
+  `);
+}
+
+async function addColumnIfMissing(
+  tableName: string,
+  columnName: string,
+  definition: string,
+) {
+  const result = await client.execute(`PRAGMA table_info(${tableName})`);
+  const exists = result.rows.some((row) => String(row.name) === columnName);
+
+  if (!exists) {
+    await client.execute(
+      `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`,
+    );
+  }
 }

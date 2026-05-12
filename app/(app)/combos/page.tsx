@@ -18,10 +18,10 @@ export default async function CombosPage() {
       {runs.length === 0 ? (
         <section className="panel grid min-h-80 place-items-center text-center">
           <div>
-            <p className="text-lg font-semibold text-stone-950">
+            <p className="empty-title text-lg font-semibold">
               Import runs before building combos.
             </p>
-            <p className="mt-2 text-sm text-stone-500">
+            <p className="quiet-text mt-2 text-sm">
               Weighted overlays need daily run metrics from uploaded exports.
             </p>
           </div>

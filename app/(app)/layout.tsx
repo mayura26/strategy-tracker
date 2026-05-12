@@ -4,6 +4,7 @@ import {
   Database,
   GitCompareArrows,
   Layers3,
+  Settings,
   Upload,
 } from "lucide-react";
 import Link from "next/link";
@@ -17,6 +18,7 @@ const navItems = [
   { href: "/compare", label: "Compare", icon: GitCompareArrows },
   { href: "/combos", label: "Combos", icon: Layers3 },
   { href: "/market-data", label: "Market data", icon: Database },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default async function AppLayout({
@@ -34,14 +36,14 @@ export default async function AppLayout({
     <div className="app-shell min-h-screen lg:grid lg:grid-cols-[250px_1fr]">
       <aside className="side-rail p-4 lg:sticky lg:top-0 lg:h-screen">
         <Link className="mb-8 flex items-center gap-3" href="/runs">
-          <span className="grid size-10 place-items-center rounded-md bg-stone-950 text-white">
+          <span className="brand-mark grid size-10 place-items-center rounded-md">
             <Activity aria-hidden size={20} />
           </span>
           <span>
-            <span className="block font-bold text-stone-950">
+            <span className="brand-title block font-bold">
               Strategy Tracker
             </span>
-            <span className="text-xs uppercase text-stone-500">
+            <span className="quiet-text text-xs uppercase">
               Research console
             </span>
           </span>

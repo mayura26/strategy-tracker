@@ -28,18 +28,19 @@ export function ComboWorkbench({ runs }: { runs: ComboSourceRun[] }) {
           <h2>Weighted strategy overlay</h2>
           <p>Adjust contracts or research weights and inspect combined days.</p>
         </div>
-        <div className="divide-y divide-stone-200">
+        <div className="divide-y divide-slate-800/80">
           {runs.map((run) => (
             <label
               className="grid gap-4 py-4 md:grid-cols-[1fr_160px]"
               key={run.id}
             >
               <span>
-                <span className="block font-medium text-stone-950">
+                <span className="strong-text block font-medium">
                   {run.name}
                 </span>
-                <span className="text-sm text-stone-500">
-                  {run.botName} / {run.instrumentSymbol} / {run.timeframe}
+                <span className="quiet-text text-sm">
+                  {run.botName} / {run.botModeName ?? "No mode"} /{" "}
+                  {run.instrumentSymbol} / {run.timeframe}
                 </span>
               </span>
               <input

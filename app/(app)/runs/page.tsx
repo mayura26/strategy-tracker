@@ -44,10 +44,10 @@ export default async function RunsPage() {
         {runs.length === 0 ? (
           <div className="grid min-h-80 place-items-center text-center">
             <div>
-              <p className="text-lg font-semibold text-stone-950">
+              <p className="empty-title text-lg font-semibold">
                 No runs imported yet.
               </p>
-              <p className="mt-2 text-sm text-stone-500">
+              <p className="quiet-text mt-2 text-sm">
                 Start with the NinjaTrader CSV in your examples folder.
               </p>
             </div>
@@ -71,15 +71,16 @@ export default async function RunsPage() {
                 <tr key={run.id}>
                   <td>
                     <Link
-                      className="inline-flex items-center gap-2 font-semibold text-stone-950 hover:text-teal-700"
+                      className="link-text inline-flex items-center gap-2 font-semibold"
                       href={`/runs/${run.id}`}
                     >
                       {run.isGolden ? <Crown aria-hidden size={15} /> : null}
                       {run.name}
                     </Link>
                   </td>
-                  <td className="text-stone-600">
-                    {run.botName} / {run.instrumentSymbol} / {run.timeframe}
+                  <td className="quiet-text">
+                    {run.botName} / {run.botModeName ?? "No mode"} /{" "}
+                    {run.instrumentSymbol} / {run.timeframe}
                   </td>
                   <td>{run.tradeCount}</td>
                   <td className={toneClass(run.netProfit)}>

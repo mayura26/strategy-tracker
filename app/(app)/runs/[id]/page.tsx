@@ -63,7 +63,8 @@ export default async function RunDetailPage({
         <div>
           <h1>{run.name}</h1>
           <p>
-            {run.botName} / {run.instrumentSymbol} / {run.timeframe}
+            {run.botName} / {run.botModeName ?? "No mode"} /{" "}
+            {run.instrumentSymbol} / {run.timeframe}
           </p>
         </div>
         <form action={setGoldenRunAction}>
@@ -218,8 +219,8 @@ function Metric({
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="font-semibold text-stone-500">{label}</dt>
-      <dd className="mt-1 break-words text-stone-900">{value}</dd>
+      <dt className="quiet-text font-semibold">{label}</dt>
+      <dd className="strong-text mt-1 break-words">{value}</dd>
     </div>
   );
 }

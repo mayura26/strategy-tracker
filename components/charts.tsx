@@ -15,8 +15,14 @@ export function EquityCurve({ days }: { days: DailyRunMetric[] }) {
       </div>
       <svg className="h-52 w-full" role="img" viewBox="0 0 640 220">
         <title>Daily cumulative net profit</title>
-        <line className="stroke-stone-200" x1="0" x2="640" y1="110" y2="110" />
-        <path className="fill-none stroke-emerald-600 stroke-[3]" d={path} />
+        <line
+          className="stroke-slate-700/70"
+          x1="0"
+          x2="640"
+          y1="110"
+          y2="110"
+        />
+        <path className="fill-none stroke-teal-300 stroke-[3]" d={path} />
       </svg>
     </div>
   );
@@ -45,8 +51,8 @@ export function DailyBars({ days }: { days: DailyRunMetric[] }) {
               <div
                 className={
                   day.netProfit >= 0
-                    ? "w-full rounded-t-sm bg-emerald-500"
-                    : "w-full rounded-t-sm bg-rose-500"
+                    ? "w-full rounded-t-sm bg-teal-300"
+                    : "w-full rounded-t-sm bg-rose-400"
                 }
                 style={{ height: `${height}%` }}
               />
@@ -83,7 +89,7 @@ export function PnlDistribution({
             title={`${formatCurrency(bucket.start)} to ${formatCurrency(bucket.end)}: ${bucket.count}`}
           >
             <div
-              className="w-full rounded-t-sm bg-stone-800"
+              className="w-full rounded-t-sm bg-amber-400"
               style={{ height: `${(bucket.count / maxCount) * 100}%` }}
             />
           </div>

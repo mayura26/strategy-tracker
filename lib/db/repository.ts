@@ -6,6 +6,7 @@ export type RunSummary = {
   id: string;
   name: string;
   botName: string;
+  botModeName: string | null;
   instrumentSymbol: string;
   yahooSymbol: string | null;
   timeframe: string;
@@ -48,6 +49,19 @@ export type InstrumentOption = {
   sessionStartHour: number;
 };
 
+export type BotOption = {
+  id: string;
+  name: string;
+  modes: BotModeOption[];
+};
+
+export type BotModeOption = {
+  id: string;
+  botId: string;
+  name: string;
+  description: string;
+};
+
 export type ComboSourceRun = RunSummary & {
   dailyMetrics: DailyRunMetric[];
 };
@@ -69,16 +83,14 @@ type InsertImportedRunInput = {
   rawCsv: string;
   importProfile: string;
   headers: string[];
-  botName: string;
-  instrumentSymbol: string;
-  yahooSymbol: string;
+  botId: string;
+  botModeId: string;
+  instrumentId: string;
   timeframe: string;
   runName: string;
   settingsJson: string;
   tags: string;
   notes: string;
-  exchangeTimezone: string;
-  sessionStartHour: number;
   metrics: RunMetrics;
   dailyMetrics: DailyRunMetric[];
   trades: NormalizedTradeSummary[];
@@ -88,34 +100,28 @@ export async function insertImportedRun(input: InsertImportedRunInput) {
   await ensureSchema();
 
   const now = new Date().toISOString();
-  const botId = await findOrCreateBot(input.botName.trim(), now);
-  const instrumentId = await findOrCreateInstrument(
-    {
-      symbol: input.instrumentSymbol.trim().toUpperCase(),
-      yahooSymbol: input.yahooSymbol.trim() || null,
-      exchangeTimezone: input.exchangeTimezone,
-      sessionStartHour: input.sessionStartHour,
-    },
-    now,
-  );
+  await assertBotModeBelongsToBot(input.botId, input.botModeId);
+  await assertInstrumentExists(input.instrumentId);
   const runId = crypto.randomUUID();
   const importId = crypto.randomUUID();
 
   await client.execute({
     sql: `INSERT INTO runs (
       id, bot_id, instrument_id, name, timeframe, settings_json, tags, notes,
+      bot_mode_id,
       trade_count, first_trade_at, last_trade_at, net_profit, max_drawdown,
       win_rate, profit_factor, expectancy, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       runId,
-      botId,
-      instrumentId,
+      input.botId,
+      input.instrumentId,
       input.runName,
       input.timeframe,
       input.settingsJson,
       input.tags,
       input.notes,
+      input.botModeId,
       input.metrics.tradeCount,
       input.metrics.firstTradeAt,
       input.metrics.lastTradeAt,
@@ -210,14 +216,20 @@ export async function listRuns(): Promise<RunSummary[]> {
     SELECT
       runs.*,
       bots.name AS bot_name,
+      bot_modes.name AS bot_mode_name,
       instruments.symbol AS instrument_symbol,
       instruments.yahoo_symbol AS yahoo_symbol,
       CASE WHEN golden_baselines.run_id = runs.id THEN 1 ELSE 0 END AS is_golden
     FROM runs
     JOIN bots ON bots.id = runs.bot_id
+    LEFT JOIN bot_modes ON bot_modes.id = runs.bot_mode_id
     JOIN instruments ON instruments.id = runs.instrument_id
     LEFT JOIN golden_baselines
       ON golden_baselines.bot_id = runs.bot_id
+      AND (
+        golden_baselines.bot_mode_id = runs.bot_mode_id
+        OR (golden_baselines.bot_mode_id IS NULL AND runs.bot_mode_id IS NULL)
+      )
       AND golden_baselines.instrument_id = runs.instrument_id
       AND golden_baselines.timeframe = runs.timeframe
     ORDER BY runs.created_at DESC
@@ -234,14 +246,20 @@ export async function getRunDetail(id: string): Promise<RunDetail | null> {
       SELECT
         runs.*,
         bots.name AS bot_name,
+        bot_modes.name AS bot_mode_name,
         instruments.symbol AS instrument_symbol,
         instruments.yahoo_symbol AS yahoo_symbol,
         CASE WHEN golden_baselines.run_id = runs.id THEN 1 ELSE 0 END AS is_golden
       FROM runs
       JOIN bots ON bots.id = runs.bot_id
+      LEFT JOIN bot_modes ON bot_modes.id = runs.bot_mode_id
       JOIN instruments ON instruments.id = runs.instrument_id
       LEFT JOIN golden_baselines
         ON golden_baselines.bot_id = runs.bot_id
+        AND (
+          golden_baselines.bot_mode_id = runs.bot_mode_id
+          OR (golden_baselines.bot_mode_id IS NULL AND runs.bot_mode_id IS NULL)
+        )
         AND golden_baselines.instrument_id = runs.instrument_id
         AND golden_baselines.timeframe = runs.timeframe
       WHERE runs.id = ?
@@ -260,6 +278,7 @@ export async function getRunDetail(id: string): Promise<RunDetail | null> {
   const dailyMetrics = await listDailyMetricsForRun(id);
   const goldenRun = await getGoldenRunForScope(
     String(row.bot_id),
+    stringOrNull(row.bot_mode_id),
     String(row.instrument_id),
     String(row.timeframe),
   );
@@ -282,7 +301,10 @@ export async function setGoldenRun(runId: string) {
   await ensureSchema();
 
   const runResult = await client.execute({
-    sql: "SELECT bot_id, instrument_id, timeframe FROM runs WHERE id = ? LIMIT 1",
+    sql: `SELECT bot_id, bot_mode_id, instrument_id, timeframe
+      FROM runs
+      WHERE id = ?
+      LIMIT 1`,
     args: [runId],
   });
   const run = runResult.rows[0];
@@ -295,19 +317,142 @@ export async function setGoldenRun(runId: string) {
 
   await client.execute({
     sql: `INSERT INTO golden_baselines (
-      id, bot_id, instrument_id, timeframe, run_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(bot_id, instrument_id, timeframe)
+      id, bot_id, bot_mode_id, instrument_id, timeframe, run_id, created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(bot_id, bot_mode_id, instrument_id, timeframe)
     DO UPDATE SET run_id = excluded.run_id, updated_at = excluded.updated_at`,
     args: [
       crypto.randomUUID(),
       String(run.bot_id),
+      stringOrNull(run.bot_mode_id),
       String(run.instrument_id),
       String(run.timeframe),
       runId,
       now,
       now,
     ],
+  });
+}
+
+export async function createBot(input: { name: string }) {
+  await ensureSchema();
+
+  const name = input.name.trim();
+
+  if (!name) {
+    throw new Error("Bot name is required.");
+  }
+
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+
+  await client.execute({
+    sql: "INSERT INTO bots (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+    args: [id, name, now, now],
+  });
+
+  return id;
+}
+
+export async function createBotMode(input: {
+  botId: string;
+  name: string;
+  description: string;
+}) {
+  await ensureSchema();
+
+  const name = input.name.trim();
+
+  if (!input.botId || !name) {
+    throw new Error("Bot and mode name are required.");
+  }
+
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+
+  await client.execute({
+    sql: `INSERT INTO bot_modes (
+      id, bot_id, name, description, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [id, input.botId, name, input.description.trim(), now, now],
+  });
+
+  return id;
+}
+
+export async function createInstrument(input: {
+  symbol: string;
+  name: string;
+  yahooSymbol: string;
+  exchangeTimezone: string;
+  sessionStartHour: number;
+}) {
+  await ensureSchema();
+
+  const symbol = input.symbol.trim().toUpperCase();
+
+  if (!symbol) {
+    throw new Error("Instrument symbol is required.");
+  }
+
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+
+  await client.execute({
+    sql: `INSERT INTO instruments (
+      id, symbol, name, yahoo_symbol, exchange_timezone, session_start_hour,
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id,
+      symbol,
+      input.name.trim() || symbol,
+      input.yahooSymbol.trim() || null,
+      input.exchangeTimezone.trim() || "America/New_York",
+      input.sessionStartHour,
+      now,
+      now,
+    ],
+  });
+
+  return id;
+}
+
+export async function listBotsWithModes(): Promise<BotOption[]> {
+  await ensureSchema();
+
+  const botsResult = await client.execute(`
+    SELECT id, name
+    FROM bots
+    ORDER BY name ASC
+  `);
+  const modesResult = await client.execute(`
+    SELECT id, bot_id, name, description
+    FROM bot_modes
+    ORDER BY name ASC
+  `);
+  const modesByBot = new Map<string, BotModeOption[]>();
+
+  for (const row of modesResult.rows) {
+    const botId = String(row.bot_id);
+    const modes = modesByBot.get(botId) ?? [];
+    modes.push({
+      id: String(row.id),
+      botId,
+      name: String(row.name),
+      description: String(row.description),
+    });
+    modesByBot.set(botId, modes);
+  }
+
+  return botsResult.rows.map((row) => {
+    const id = String(row.id);
+    return {
+      id,
+      name: String(row.name),
+      modes: modesByBot.get(id) ?? [],
+    };
   });
 }
 
@@ -365,6 +510,34 @@ export async function listInstruments(): Promise<InstrumentOption[]> {
     exchangeTimezone: String(row.exchange_timezone),
     sessionStartHour: Number(row.session_start_hour),
   }));
+}
+
+export async function getInstrument(
+  id: string,
+): Promise<InstrumentOption | null> {
+  await ensureSchema();
+
+  const result = await client.execute({
+    sql: `SELECT id, symbol, name, yahoo_symbol, exchange_timezone, session_start_hour
+      FROM instruments
+      WHERE id = ?
+      LIMIT 1`,
+    args: [id],
+  });
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: String(row.id),
+    symbol: String(row.symbol),
+    name: stringOrNull(row.name),
+    yahooSymbol: stringOrNull(row.yahoo_symbol),
+    exchangeTimezone: String(row.exchange_timezone),
+    sessionStartHour: Number(row.session_start_hour),
+  };
 }
 
 export async function listMarketRows(): Promise<MarketRow[]> {
@@ -463,99 +636,57 @@ export async function upsertMarketBar(input: {
   });
 }
 
-async function findOrCreateBot(name: string, now: string) {
-  const existing = await client.execute({
-    sql: "SELECT id FROM bots WHERE name = ? LIMIT 1",
-    args: [name],
+async function assertBotModeBelongsToBot(botId: string, botModeId: string) {
+  const result = await client.execute({
+    sql: `SELECT id
+      FROM bot_modes
+      WHERE id = ? AND bot_id = ?
+      LIMIT 1`,
+    args: [botModeId, botId],
   });
 
-  if (existing.rows[0]?.id) {
-    return String(existing.rows[0].id);
+  if (!result.rows[0]) {
+    throw new Error("Choose a valid mode for the selected bot.");
   }
-
-  const id = crypto.randomUUID();
-  await client.execute({
-    sql: "INSERT INTO bots (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)",
-    args: [id, name, now, now],
-  });
-
-  return id;
 }
 
-async function findOrCreateInstrument(
-  input: {
-    symbol: string;
-    yahooSymbol: string | null;
-    exchangeTimezone: string;
-    sessionStartHour: number;
-  },
-  now: string,
-) {
-  const existing = await client.execute({
-    sql: "SELECT id FROM instruments WHERE symbol = ? LIMIT 1",
-    args: [input.symbol],
+async function assertInstrumentExists(instrumentId: string) {
+  const result = await client.execute({
+    sql: "SELECT id FROM instruments WHERE id = ? LIMIT 1",
+    args: [instrumentId],
   });
 
-  if (existing.rows[0]?.id) {
-    const id = String(existing.rows[0].id);
-    await client.execute({
-      sql: `UPDATE instruments
-        SET yahoo_symbol = COALESCE(?, yahoo_symbol),
-          exchange_timezone = ?,
-          session_start_hour = ?,
-          updated_at = ?
-        WHERE id = ?`,
-      args: [
-        input.yahooSymbol,
-        input.exchangeTimezone,
-        input.sessionStartHour,
-        now,
-        id,
-      ],
-    });
-    return id;
+  if (!result.rows[0]) {
+    throw new Error("Choose a valid instrument.");
   }
-
-  const id = crypto.randomUUID();
-  await client.execute({
-    sql: `INSERT INTO instruments (
-      id, symbol, name, yahoo_symbol, exchange_timezone, session_start_hour,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      id,
-      input.symbol,
-      input.symbol,
-      input.yahooSymbol,
-      input.exchangeTimezone,
-      input.sessionStartHour,
-      now,
-      now,
-    ],
-  });
-
-  return id;
 }
 
 async function getGoldenRunForScope(
   botId: string,
+  botModeId: string | null,
   instrumentId: string,
   timeframe: string,
 ): Promise<(RunSummary & { dailyMetrics: DailyRunMetric[] }) | null> {
   const result = await client.execute({
     sql: `
-      SELECT runs.*, bots.name AS bot_name, instruments.symbol AS instrument_symbol,
-        instruments.yahoo_symbol AS yahoo_symbol, 1 AS is_golden
+      SELECT runs.*, bots.name AS bot_name, bot_modes.name AS bot_mode_name,
+        instruments.symbol AS instrument_symbol, instruments.yahoo_symbol AS yahoo_symbol,
+        1 AS is_golden
       FROM golden_baselines
       JOIN runs ON runs.id = golden_baselines.run_id
       JOIN bots ON bots.id = runs.bot_id
+      LEFT JOIN bot_modes ON bot_modes.id = runs.bot_mode_id
       JOIN instruments ON instruments.id = runs.instrument_id
       WHERE golden_baselines.bot_id = ?
+        AND (
+          golden_baselines.bot_mode_id = ?
+          OR (golden_baselines.bot_mode_id IS NULL AND ? IS NULL)
+        )
         AND golden_baselines.instrument_id = ?
         AND golden_baselines.timeframe = ?
       LIMIT 1
     `,
-    args: [botId, instrumentId, timeframe],
+    args: [botId, botModeId, botModeId, instrumentId, timeframe],
   });
   const row = result.rows[0];
 
@@ -652,6 +783,7 @@ function mapRunSummary(row: Record<string, unknown>): RunSummary {
     id: String(row.id),
     name: String(row.name),
     botName: String(row.bot_name),
+    botModeName: stringOrNull(row.bot_mode_name),
     instrumentSymbol: String(row.instrument_symbol),
     yahooSymbol: stringOrNull(row.yahoo_symbol),
     timeframe: String(row.timeframe),

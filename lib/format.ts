@@ -45,8 +45,8 @@ export function formatDate(value: string | null | undefined) {
 
 export function toneClass(value: number | null | undefined) {
   if (value === null || value === undefined || value === 0) {
-    return "text-stone-500";
+    return "text-slate-400";
   }
 
-  return value > 0 ? "text-emerald-700" : "text-rose-700";
+  return value > 0 ? "text-emerald-300" : "text-rose-300";
 }

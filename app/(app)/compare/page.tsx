@@ -11,7 +11,7 @@ import {
 export default async function ComparePage() {
   const runs = await listRuns();
   const groups = runs.reduce((map, run) => {
-    const key = `${run.botName} / ${run.instrumentSymbol} / ${run.timeframe}`;
+    const key = `${run.botName} / ${run.botModeName ?? "No mode"} / ${run.instrumentSymbol} / ${run.timeframe}`;
     const scopedRuns = map.get(key) ?? [];
     scopedRuns.push(run);
     map.set(key, scopedRuns);
@@ -38,7 +38,7 @@ export default async function ComparePage() {
                 Golden:{" "}
                 {golden ? (
                   <Link
-                    className="font-semibold text-teal-700"
+                    className="link-text font-semibold"
                     href={`/runs/${golden.id}`}
                   >
                     {golden.name}
@@ -69,7 +69,7 @@ export default async function ComparePage() {
                     <tr key={run.id}>
                       <td>
                         <Link
-                          className="font-semibold text-stone-950 hover:text-teal-700"
+                          className="link-text font-semibold"
                           href={`/runs/${run.id}`}
                         >
                           {run.name}
