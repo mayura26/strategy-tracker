@@ -30,6 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# local app database fallback
+*.local.db
+*.local.db-shm
+*.local.db-wal
+
 # env files (can opt-in for committing if needed)
 .env*
 
