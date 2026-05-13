@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Strategy Tracker">
+  <defs>
+    <linearGradient id="brand-gradient" x1="108" y1="64" x2="404" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f59e0b" />
+      <stop offset="1" stop-color="#7c2d12" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="72" fill="url(#brand-gradient)" />
+  <path
+    d="M384 256h-64l-40 120-96-240-40 120H80"
+    fill="none"
+    stroke="#111827"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="44"
+  />
+</svg>
