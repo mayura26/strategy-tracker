@@ -20,12 +20,12 @@ Last updated: 2026-05-13
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`.
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
-- Run detail threshold discovery that ranks ATR, range, gap, and absolute-gap conditions by average-PnL lift.
+- Run detail threshold discovery that ranks ATR, range, gap, and absolute-gap conditions by average-PnL lift and out-of-sample validation lift.
 - Run detail golden day-difference table showing largest daily divergences vs the pinned baseline.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
 - Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, and contribution days.
-- Visual comparison workspace with scoped run selection, core metric bars, filtered daily PnL overlays, box plots, and dot/strip plots.
-- Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily alignment, similarity filtering, and day buckets.
+- Visual comparison workspace with scoped run selection, core metric bars, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, box plots, and dot/strip plots.
+- Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.
 - Tests for CSV parsing, import preview, currency parsing, session trading-date assignment, run/daily metrics, comparison analytics, combo analytics, and regime threshold discovery.
@@ -35,9 +35,9 @@ Last updated: 2026-05-13
 - Drizzle ORM schema definitions exist, but there is no Drizzle migration CLI workflow yet; schema is currently initialized at runtime.
 - CSV imports now preview before saving, but there is no stored reprocess workflow for old imports yet.
 - Instruments must be created in settings before import; session start hour and Yahoo symbol are stored per instrument.
-- Regime discovery is currently heuristic; it proposes ranked thresholds but does not yet train ML models or validate rules out of sample.
+- Regime discovery is currently heuristic; it proposes ranked thresholds with chronological validation, but does not yet train ML models.
 - Comparison charts use custom SVG/HTML primitives; there is no zoom/brush interaction yet.
-- Saved combo pages show stored weighted results, but there is not yet an edit/delete workflow for saved combos.
+- Saved combo pages support edit/delete, but there is not yet version history for combo changes.
 - Golden comparison has a day-difference table, but no filtering/drilldown controls yet.
 - The current NT export does not include side, entry/exit prices, quantity, or holding time, so those analyses are not possible until a richer export is added.
 - Python/ML is documented only; no Next.js API stub or Python service is implemented.
@@ -69,7 +69,7 @@ If `BACKUP_DIR` is absent, backups are written to `./backups`, which is also ign
 ## Recommended Next Steps
 
 1. Add zoom/brush and richer tooltips to comparison charts if the custom primitives become too limited.
-2. Add edit/delete controls for saved combos.
+2. Add version history for saved combo changes.
 3. Add Drizzle migration scripts so Turso schema changes are explicit and reproducible.
 4. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
-5. Add out-of-sample validation for discovered ATR/range/gap thresholds.
+5. Add richer ML-style validation for discovered ATR/range/gap thresholds.

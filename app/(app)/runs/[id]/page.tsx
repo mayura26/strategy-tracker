@@ -225,6 +225,7 @@ export default async function RunDetailPage({
                 <th>Other avg</th>
                 <th>Lift</th>
                 <th>Win rate</th>
+                <th>Validation</th>
                 <th>Total PnL</th>
               </tr>
             </thead>
@@ -255,6 +256,21 @@ export default async function RunDetailPage({
                     {formatCurrency(suggestion.lift)}
                   </td>
                   <td>{formatPercent(suggestion.selectedWinRate)}</td>
+                  <td>
+                    <span
+                      className={
+                        suggestion.validated
+                          ? "text-emerald-300"
+                          : "text-slate-400"
+                      }
+                    >
+                      {suggestion.validationLift === null
+                        ? "n/a"
+                        : `${formatCurrency(suggestion.validationLift)} / ${
+                            suggestion.validationCount
+                          } days`}
+                    </span>
+                  </td>
                   <td className={toneClass(suggestion.selectedTotalPnl)}>
                     {formatCurrency(suggestion.selectedTotalPnl)}
                   </td>

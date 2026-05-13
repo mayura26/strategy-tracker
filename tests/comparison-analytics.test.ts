@@ -1,7 +1,9 @@
 import {
   alignDailyPnL,
+  buildHistogram,
   filterAlignedDays,
   summarizeDistribution,
+  summarizeOutcomes,
 } from "@/lib/comparison-analytics";
 import { assertApprox, assertEqual } from "@/tests/assert";
 
@@ -16,6 +18,23 @@ assertApprox(distribution.q3, 130, "distribution q3");
 assertEqual(distribution.outlierCount, 2, "distribution outliers");
 assertEqual(distribution.lowerWhisker, -100, "lower whisker");
 assertEqual(distribution.upperWhisker, 140, "upper whisker");
+
+const histogram = buildHistogram([-120, -25, 0, 35, 110, 220], 6);
+assertEqual(histogram[0].start, -200, "histogram nice lower bound");
+assertEqual(histogram.at(-1)?.end, 300, "histogram nice upper bound");
+assertEqual(
+  histogram.reduce((sum, bin) => sum + bin.count, 0),
+  6,
+  "histogram counts all values",
+);
+
+const outcomes = summarizeOutcomes([-100, 0, 50, 150, -25]);
+assertEqual(outcomes.greenDays, 2, "outcome green days");
+assertEqual(outcomes.redDays, 2, "outcome red days");
+assertEqual(outcomes.flatDays, 1, "outcome flat days");
+assertApprox(outcomes.greenRate, 0.4, "outcome green rate");
+assertEqual(outcomes.bestDay, 150, "outcome best day");
+assertEqual(outcomes.worstDay, -100, "outcome worst day");
 
 const goldenDays = [
   day("2026-01-01", 100, 2),

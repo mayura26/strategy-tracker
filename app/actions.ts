@@ -10,11 +10,13 @@ import {
   createBot,
   createBotMode,
   createInstrument,
+  deleteSavedCombo,
   getInstrument,
   insertImportedRun,
   listInstruments,
   saveCombo,
   setGoldenRun,
+  updateSavedCombo,
   upsertMarketBar,
 } from "@/lib/db/repository";
 import { buildImportPreview } from "@/lib/import-preview";
@@ -175,6 +177,59 @@ export async function saveComboAction(formData: FormData) {
 
   await saveCombo({ name, description, configJson });
   revalidatePath("/combos");
+}
+
+export async function updateComboAction(formData: FormData) {
+  await requireUser();
+
+  const id = String(formData.get("comboId") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const runIds = formData
+    .getAll("componentRunId")
+    .map((runId) => String(runId).trim())
+    .filter(Boolean);
+  const config = runIds
+    .map((runId) => ({
+      runId,
+      weight: Number(formData.get(`weight:${runId}`) ?? 0),
+    }))
+    .filter((item) => Number.isFinite(item.weight) && item.weight !== 0);
+
+  if (!id) {
+    throw new Error("Missing combo id.");
+  }
+
+  if (!name) {
+    throw new Error("Combo name is required.");
+  }
+
+  if (config.length === 0) {
+    throw new Error("At least one combo component needs a non-zero weight.");
+  }
+
+  await updateSavedCombo({
+    id,
+    name,
+    description,
+    configJson: JSON.stringify(config),
+  });
+  revalidatePath("/combos");
+  revalidatePath(`/combos/${id}`);
+}
+
+export async function deleteComboAction(formData: FormData) {
+  await requireUser();
+
+  const id = String(formData.get("comboId") ?? "").trim();
+
+  if (!id) {
+    throw new Error("Missing combo id.");
+  }
+
+  await deleteSavedCombo(id);
+  revalidatePath("/combos");
+  redirect("/combos");
 }
 
 export async function refreshMarketDataAction(formData: FormData) {

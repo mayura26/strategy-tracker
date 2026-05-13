@@ -559,6 +559,37 @@ export async function saveCombo(input: {
   });
 }
 
+export async function updateSavedCombo(input: {
+  id: string;
+  name: string;
+  description: string;
+  configJson: string;
+}) {
+  await ensureSchema();
+
+  await client.execute({
+    sql: `UPDATE combos
+      SET name = ?, description = ?, config_json = ?, updated_at = ?
+      WHERE id = ?`,
+    args: [
+      input.name,
+      input.description,
+      input.configJson,
+      new Date().toISOString(),
+      input.id,
+    ],
+  });
+}
+
+export async function deleteSavedCombo(id: string) {
+  await ensureSchema();
+
+  await client.execute({
+    sql: `DELETE FROM combos WHERE id = ?`,
+    args: [id],
+  });
+}
+
 export async function listSavedCombos(): Promise<SavedCombo[]> {
   await ensureSchema();
 

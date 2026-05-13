@@ -31,6 +31,25 @@ export type AlignedDay = {
   candidateTrades: number;
 };
 
+export type HistogramBin = {
+  start: number;
+  end: number;
+  count: number;
+};
+
+export type OutcomeSummary = {
+  greenDays: number;
+  redDays: number;
+  flatDays: number;
+  greenRate: number;
+  redRate: number;
+  totalPnl: number;
+  averageGreen: number | null;
+  averageRed: number | null;
+  bestDay: number | null;
+  worstDay: number | null;
+};
+
 export function summarizeDistribution(values: number[]): DistributionSummary {
   const sorted = values
     .filter((value) => Number.isFinite(value))
@@ -77,6 +96,59 @@ export function summarizeDistribution(values: number[]): DistributionSummary {
     upperWhisker: inliers.at(-1) ?? sorted.at(-1) ?? sorted[0],
     outlierCount: outliers.length,
     outliers,
+  };
+}
+
+export function buildHistogram(
+  values: number[],
+  targetBinCount = 12,
+  bounds?: { min: number; max: number },
+): HistogramBin[] {
+  const finiteValues = values.filter((value) => Number.isFinite(value));
+
+  if (finiteValues.length === 0) {
+    return [];
+  }
+
+  const min = Math.min(bounds?.min ?? Math.min(...finiteValues), 0);
+  const max = Math.max(bounds?.max ?? Math.max(...finiteValues), 0);
+  const step = niceStep((max - min || 1) / targetBinCount);
+  const start = Math.floor(min / step) * step;
+  const end = Math.ceil(max / step) * step;
+  const binCount = Math.max(1, Math.ceil((end - start) / step));
+  const bins = Array.from({ length: binCount }, (_, index) => ({
+    start: start + index * step,
+    end: start + (index + 1) * step,
+    count: 0,
+  }));
+
+  for (const value of finiteValues) {
+    const index = Math.min(Math.floor((value - start) / step), bins.length - 1);
+    bins[Math.max(index, 0)].count += 1;
+  }
+
+  return bins;
+}
+
+export function summarizeOutcomes(values: number[]): OutcomeSummary {
+  const finiteValues = values.filter((value) => Number.isFinite(value));
+  const greenValues = finiteValues.filter((value) => value > 0);
+  const redValues = finiteValues.filter((value) => value < 0);
+  const flatDays = finiteValues.length - greenValues.length - redValues.length;
+
+  return {
+    greenDays: greenValues.length,
+    redDays: redValues.length,
+    flatDays,
+    greenRate:
+      finiteValues.length === 0 ? 0 : greenValues.length / finiteValues.length,
+    redRate:
+      finiteValues.length === 0 ? 0 : redValues.length / finiteValues.length,
+    totalPnl: finiteValues.reduce((sum, value) => sum + value, 0),
+    averageGreen: average(greenValues),
+    averageRed: average(redValues),
+    bestDay: finiteValues.length === 0 ? null : Math.max(...finiteValues),
+    worstDay: finiteValues.length === 0 ? null : Math.min(...finiteValues),
   };
 }
 
@@ -164,4 +236,31 @@ export function quantile(sortedValues: number[], percentile: number) {
   const weight = position - lower;
 
   return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+}
+
+function niceStep(rawStep: number) {
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalized = rawStep / magnitude;
+
+  if (normalized <= 1) {
+    return magnitude;
+  }
+
+  if (normalized <= 2) {
+    return 2 * magnitude;
+  }
+
+  if (normalized <= 5) {
+    return 5 * magnitude;
+  }
+
+  return 10 * magnitude;
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) {
+    return null;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }

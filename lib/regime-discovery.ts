@@ -18,6 +18,12 @@ export type ThresholdSuggestion = {
   lift: number;
   selectedWinRate: number;
   selectedTotalPnl: number;
+  validationCount: number;
+  validationAveragePnl: number | null;
+  validationOtherAveragePnl: number | null;
+  validationLift: number | null;
+  validationWinRate: number | null;
+  validated: boolean;
   action: "favor" | "avoid";
 };
 
@@ -30,11 +36,29 @@ export function discoverRegimeThresholds(
   const minDays =
     options.minDays ?? Math.max(3, Math.floor(days.length * 0.12));
   const limit = options.limit ?? 6;
+  const sortedDays = [...days].sort((left, right) =>
+    left.tradingDate.localeCompare(right.tradingDate),
+  );
+  const splitIndex = Math.max(1, Math.floor(sortedDays.length * 0.7));
+  const trainingDays = sortedDays.slice(0, splitIndex);
+  const validationDays = sortedDays.slice(splitIndex);
   const suggestions = [
-    ...discoverFeature(days, "ATR 14", "atr14", minDays),
-    ...discoverFeature(days, "Range", "range", minDays),
-    ...discoverFeature(days, "Absolute gap", "absGap", minDays),
-    ...discoverFeature(days, "Gap", "gap", minDays),
+    ...discoverFeature(
+      trainingDays,
+      validationDays,
+      "ATR 14",
+      "atr14",
+      minDays,
+    ),
+    ...discoverFeature(trainingDays, validationDays, "Range", "range", minDays),
+    ...discoverFeature(
+      trainingDays,
+      validationDays,
+      "Absolute gap",
+      "absGap",
+      minDays,
+    ),
+    ...discoverFeature(trainingDays, validationDays, "Gap", "gap", minDays),
   ];
 
   return suggestions
@@ -43,12 +67,13 @@ export function discoverRegimeThresholds(
 }
 
 function discoverFeature(
-  days: RegimeDiscoveryDay[],
+  trainingDays: RegimeDiscoveryDay[],
+  validationDays: RegimeDiscoveryDay[],
   feature: ThresholdSuggestion["feature"],
   field: "atr14" | "range" | "gap" | "absGap",
   minDays: number,
 ) {
-  const values = days
+  const values = trainingDays
     .map((day) => valueFor(day, field))
     .filter((value): value is number => value !== null)
     .sort((left, right) => left - right);
@@ -59,10 +84,26 @@ function discoverFeature(
 
   for (const threshold of thresholds) {
     suggestions.push(
-      ...evaluateThreshold(days, feature, field, threshold, "gte", minDays),
+      ...evaluateThreshold(
+        trainingDays,
+        validationDays,
+        feature,
+        field,
+        threshold,
+        "gte",
+        minDays,
+      ),
     );
     suggestions.push(
-      ...evaluateThreshold(days, feature, field, threshold, "lt", minDays),
+      ...evaluateThreshold(
+        trainingDays,
+        validationDays,
+        feature,
+        field,
+        threshold,
+        "lt",
+        minDays,
+      ),
     );
   }
 
@@ -70,27 +111,57 @@ function discoverFeature(
 }
 
 function evaluateThreshold(
-  days: RegimeDiscoveryDay[],
+  trainingDays: RegimeDiscoveryDay[],
+  validationDays: RegimeDiscoveryDay[],
   feature: ThresholdSuggestion["feature"],
   field: "atr14" | "range" | "gap" | "absGap",
   threshold: number,
   operator: "gte" | "lt",
   minDays: number,
 ): ThresholdSuggestion[] {
-  const eligibleDays = days.filter((day) => valueFor(day, field) !== null);
-  const selected = eligibleDays.filter((day) => {
+  const eligibleTrainingDays = trainingDays.filter(
+    (day) => valueFor(day, field) !== null,
+  );
+  const selected = eligibleTrainingDays.filter((day) => {
     const value = valueFor(day, field) ?? 0;
     return operator === "gte" ? value >= threshold : value < threshold;
   });
-  const other = eligibleDays.filter((day) => !selected.includes(day));
+  const other = eligibleTrainingDays.filter((day) => !selected.includes(day));
 
   if (selected.length < minDays || other.length < minDays) {
     return [];
   }
 
+  const eligibleValidationDays = validationDays.filter(
+    (day) => valueFor(day, field) !== null,
+  );
+  const validationSelected = eligibleValidationDays.filter((day) => {
+    const value = valueFor(day, field) ?? 0;
+    return operator === "gte" ? value >= threshold : value < threshold;
+  });
+  const validationOther = eligibleValidationDays.filter(
+    (day) => !validationSelected.includes(day),
+  );
   const selectedAveragePnl = averagePnl(selected);
   const otherAveragePnl = averagePnl(other);
   const lift = selectedAveragePnl - otherAveragePnl;
+  const validationAveragePnl =
+    validationSelected.length > 0 ? averagePnl(validationSelected) : null;
+  const validationOtherAveragePnl =
+    validationOther.length > 0 ? averagePnl(validationOther) : null;
+  const validationLift =
+    validationAveragePnl !== null && validationOtherAveragePnl !== null
+      ? validationAveragePnl - validationOtherAveragePnl
+      : null;
+  const validationWinRate =
+    validationSelected.length > 0
+      ? validationSelected.filter((day) => day.netProfit > 0).length /
+        validationSelected.length
+      : null;
+  const validated =
+    validationLift !== null &&
+    Math.sign(validationLift) === Math.sign(lift) &&
+    Math.abs(validationLift) > 0;
   const condition = `${feature} ${operator === "gte" ? ">=" : "<"} ${threshold.toFixed(2)}`;
 
   return [
@@ -107,6 +178,12 @@ function evaluateThreshold(
       selectedWinRate:
         selected.filter((day) => day.netProfit > 0).length / selected.length,
       selectedTotalPnl: selected.reduce((sum, day) => sum + day.netProfit, 0),
+      validationCount: validationSelected.length,
+      validationAveragePnl,
+      validationOtherAveragePnl,
+      validationLift,
+      validationWinRate,
+      validated,
       action: lift >= 0 ? "favor" : "avoid",
     },
   ];
@@ -145,5 +222,10 @@ function unique(values: number[]) {
 }
 
 function score(suggestion: ThresholdSuggestion) {
-  return Math.abs(suggestion.lift) * Math.sqrt(suggestion.selectedCount);
+  const validationMultiplier = suggestion.validated ? 1.2 : 0.8;
+  return (
+    Math.abs(suggestion.lift) *
+    Math.sqrt(suggestion.selectedCount) *
+    validationMultiplier
+  );
 }

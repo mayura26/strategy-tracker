@@ -2,7 +2,7 @@ import { discoverRegimeThresholds } from "@/lib/regime-discovery";
 import { assertEqual, assertOk } from "@/tests/assert";
 
 const days = Array.from({ length: 20 }, (_, index) => {
-  const highAtr = index >= 10;
+  const highAtr = index % 2 === 0;
 
   return {
     tradingDate: `2026-01-${String(index + 1).padStart(2, "0")}`,
@@ -16,8 +16,8 @@ const days = Array.from({ length: 20 }, (_, index) => {
     worstTrade: highAtr ? 300 : -50,
     avgMae: null,
     avgMfe: null,
-    atr14: highAtr ? 30 + index : 10 + index,
-    range: highAtr ? 40 + index : 15 + index,
+    atr14: highAtr ? 40 + index : 10 + index,
+    range: highAtr ? 55 + index : 15 + index,
     gap: index % 2 === 0 ? 1 : -1,
   };
 });
@@ -36,6 +36,11 @@ assertOk(
 assertOk(
   topSuggestion.selectedAveragePnl > topSuggestion.otherAveragePnl,
   "selected regime beats remainder",
+);
+assertOk(topSuggestion.validated, "top threshold validates out of sample");
+assertOk(
+  (topSuggestion.validationLift ?? 0) > 0,
+  "validation lift is positive",
 );
 
 console.log("Regime discovery tests passed.");

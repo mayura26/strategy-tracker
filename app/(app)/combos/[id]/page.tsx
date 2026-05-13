@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { deleteComboAction, updateComboAction } from "@/app/actions";
 import {
   buildWeightedCombo,
   type ComboConfigItem,
@@ -90,27 +91,60 @@ export default async function ComboDetailPage({
         </section>
       ) : null}
 
-      <section className="panel overflow-x-auto">
+      <section className="panel">
         <div className="section-title">
-          <h2>Components</h2>
+          <h2>Edit combo</h2>
           <p>{selectedRuns.length} weighted source runs.</p>
         </div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Run</th>
-              <th>Scope</th>
-              <th>Weight</th>
-              <th>Run PnL</th>
-              <th>Weighted PnL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {selectedRuns.map((run) => (
-              <ComponentRow key={run.id} run={run} weight={weights[run.id]} />
-            ))}
-          </tbody>
-        </table>
+        <form action={updateComboAction} className="grid gap-4">
+          <input name="comboId" type="hidden" value={combo.id} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2">
+              <span className="label-text">Name</span>
+              <input
+                className="input"
+                defaultValue={combo.name}
+                name="name"
+                required
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="label-text">Description</span>
+              <input
+                className="input"
+                defaultValue={combo.description}
+                name="description"
+              />
+            </label>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Scope</th>
+                  <th>Weight</th>
+                  <th>Run PnL</th>
+                  <th>Weighted PnL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedRuns.map((run) => (
+                  <ComponentRow
+                    key={run.id}
+                    run={run}
+                    weight={weights[run.id]}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <button className="primary-button" type="submit">
+              Save changes
+            </button>
+          </div>
+        </form>
       </section>
 
       <section className="panel overflow-x-auto">
@@ -151,6 +185,19 @@ export default async function ComboDetailPage({
           </tbody>
         </table>
       </section>
+
+      <section className="panel border-rose-400/30">
+        <div className="section-title">
+          <h2>Delete combo</h2>
+          <p>Remove this saved overlay from the combo library.</p>
+        </div>
+        <form action={deleteComboAction}>
+          <input name="comboId" type="hidden" value={combo.id} />
+          <button className="ghost-button text-rose-300" type="submit">
+            Delete combo
+          </button>
+        </form>
+      </section>
     </div>
   );
 }
@@ -167,6 +214,7 @@ function ComponentRow({
   return (
     <tr>
       <td>
+        <input name="componentRunId" type="hidden" value={run.id} />
         <Link className="link-text" href={`/runs/${run.id}`}>
           {run.name}
         </Link>
@@ -175,7 +223,15 @@ function ComponentRow({
         {run.botName} / {run.botModeName ?? "No mode"} / {run.instrumentSymbol}{" "}
         / {run.timeframe}
       </td>
-      <td>{formatNumber(weight)}</td>
+      <td>
+        <input
+          className="input min-w-24"
+          defaultValue={weight}
+          name={`weight:${run.id}`}
+          step="0.25"
+          type="number"
+        />
+      </td>
       <td className={toneClass(run.netProfit)}>
         {formatCurrency(run.netProfit)}
       </td>

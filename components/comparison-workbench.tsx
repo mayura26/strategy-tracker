@@ -6,9 +6,11 @@ import { useMemo, useState } from "react";
 
 import {
   alignDailyPnL,
+  buildHistogram,
   type DayBucket,
   filterAlignedDays,
   summarizeDistribution,
+  summarizeOutcomes,
 } from "@/lib/comparison-analytics";
 import type { ComparisonGroup, ComparisonRun } from "@/lib/db/repository";
 import {
@@ -175,6 +177,11 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
         <DailyDifferenceTable days={filteredDays.slice(0, 24)} />
       </section>
 
+      <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
+        <DayOutcomeVersus golden={golden} candidate={candidate} />
+        <DailyHistogramComparison runs={[golden, candidate]} />
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-2">
         <DistributionPanel
           runs={[golden, candidate]}
@@ -189,6 +196,231 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
       </section>
     </div>
   );
+}
+
+function DayOutcomeVersus({
+  golden,
+  candidate,
+}: {
+  golden: ComparisonRun;
+  candidate: ComparisonRun;
+}) {
+  const rows = [golden, candidate].map((run) => ({
+    run,
+    summary: summarizeOutcomes(run.dailyMetrics.map((day) => day.netProfit)),
+  }));
+
+  return (
+    <section className="panel">
+      <div className="section-title">
+        <div>
+          <h2>Green / red days</h2>
+          <p>Win-day profile before distribution shape.</p>
+        </div>
+      </div>
+      <div className="grid gap-4">
+        {rows.map(({ run, summary }) => {
+          const totalDays =
+            summary.greenDays + summary.redDays + summary.flatDays || 1;
+          const greenWidth = (summary.greenDays / totalDays) * 100;
+          const redWidth = (summary.redDays / totalDays) * 100;
+          const flatWidth = Math.max(100 - greenWidth - redWidth, 0);
+
+          return (
+            <div className="grid gap-3" key={run.id}>
+              <div className="flex items-center justify-between gap-3">
+                <Link
+                  className="link-text font-semibold"
+                  href={`/runs/${run.id}`}
+                >
+                  {run.name}
+                </Link>
+                <span className={toneClass(summary.totalPnl)}>
+                  {formatCurrency(summary.totalPnl)}
+                </span>
+              </div>
+              <div className="flex h-3 overflow-hidden rounded-full bg-slate-900">
+                <span
+                  className="bg-teal-300"
+                  style={{ width: `${greenWidth}%` }}
+                  title={`${summary.greenDays} green days`}
+                />
+                <span
+                  className="bg-slate-600"
+                  style={{ width: `${flatWidth}%` }}
+                  title={`${summary.flatDays} flat days`}
+                />
+                <span
+                  className="bg-rose-400"
+                  style={{ width: `${redWidth}%` }}
+                  title={`${summary.redDays} red days`}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <OutcomeCell
+                  label="Green"
+                  value={`${summary.greenDays} / ${formatPercent(
+                    summary.greenRate,
+                  )}`}
+                />
+                <OutcomeCell
+                  label="Red"
+                  value={`${summary.redDays} / ${formatPercent(summary.redRate)}`}
+                />
+                <OutcomeCell label="Flat" value={String(summary.flatDays)} />
+              </div>
+              <div className="quiet-text grid gap-1 text-xs">
+                <span>Avg green {formatCurrency(summary.averageGreen)}</span>
+                <span>Avg red {formatCurrency(summary.averageRed)}</span>
+                <span>
+                  Best {formatCurrency(summary.bestDay)} / worst{" "}
+                  {formatCurrency(summary.worstDay)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function OutcomeCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="quiet-text block text-xs uppercase">{label}</span>
+      <strong className="strong-text mt-1 block">{value}</strong>
+    </div>
+  );
+}
+
+function DailyHistogramComparison({ runs }: { runs: ComparisonRun[] }) {
+  const series = runs.map((run) => ({
+    run,
+    values: run.dailyMetrics.map((day) => day.netProfit),
+  }));
+  const allValues = series.flatMap((item) => item.values);
+  const bounds = {
+    min: Math.min(...allValues, 0),
+    max: Math.max(...allValues, 0),
+  };
+  const histograms = series.map(({ run, values }) => ({
+    run,
+    bins: buildHistogram(values, 12, bounds),
+  }));
+  const binRanges = histograms[0]?.bins ?? [];
+  const maxCount = Math.max(
+    ...histograms.flatMap((item) => item.bins.map((bin) => bin.count)),
+    1,
+  );
+
+  return (
+    <section className="panel">
+      <div className="section-title">
+        <div>
+          <h2>Daily PnL histogram</h2>
+          <p>
+            Shared buckets reveal concentration, tails, and red-day clusters.
+          </p>
+        </div>
+      </div>
+      <div className="overflow-hidden">
+        <div
+          className="grid gap-1"
+          style={{
+            gridTemplateColumns: `minmax(72px, 0.7fr) repeat(${binRanges.length}, minmax(0, 1fr))`,
+          }}
+        >
+          <div />
+          {binRanges.map((bin) => (
+            <div
+              className="quiet-text flex min-h-9 items-end justify-center text-center text-[0.6rem] leading-tight"
+              key={`${bin.start}-${bin.end}`}
+              title={formatBucket(bin.start, bin.end)}
+            >
+              {formatCompactBucket(bin.start, bin.end)}
+            </div>
+          ))}
+          {histograms.map(({ run, bins }) => (
+            <HistogramRunRow
+              bins={bins}
+              key={run.id}
+              maxCount={maxCount}
+              run={run}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HistogramRunRow({
+  run,
+  bins,
+  maxCount,
+}: {
+  run: ComparisonRun;
+  bins: ReturnType<typeof buildHistogram>;
+  maxCount: number;
+}) {
+  return (
+    <>
+      <Link
+        className="link-text self-end truncate pb-1 pr-2 text-sm font-semibold"
+        href={`/runs/${run.id}`}
+        title={run.name}
+      >
+        {run.name}
+      </Link>
+      {bins.map((bin) => {
+        const height = Math.max(
+          (bin.count / maxCount) * 100,
+          bin.count ? 7 : 0,
+        );
+        const isLossBucket = bin.end <= 0;
+        const isMixedBucket = bin.start < 0 && bin.end > 0;
+
+        return (
+          <div
+            className="flex h-36 items-end border-b border-slate-800"
+            key={`${run.id}-${bin.start}-${bin.end}`}
+            title={`${run.name}: ${formatBucket(bin.start, bin.end)} = ${bin.count} days`}
+          >
+            <div
+              className={
+                isLossBucket
+                  ? "w-full rounded-t-sm bg-rose-400"
+                  : isMixedBucket
+                    ? "w-full rounded-t-sm bg-slate-500"
+                    : "w-full rounded-t-sm bg-teal-300"
+              }
+              style={{ height: `${height}%` }}
+            />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function formatBucket(start: number, end: number) {
+  return `${formatCurrency(start)} to ${formatCurrency(end)}`;
+}
+
+function formatCompactBucket(start: number, end: number) {
+  return `${formatCompactCurrency(start)}-${formatCompactCurrency(end)}`;
+}
+
+function formatCompactCurrency(value: number) {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+
+  if (abs >= 1000) {
+    return `${sign}$${formatNumber(abs / 1000, 1)}k`;
+  }
+
+  return `${sign}$${formatNumber(abs, 0)}`;
 }
 
 function MetricBarComparison({ runs }: { runs: ComparisonRun[] }) {
@@ -366,12 +598,13 @@ function Bar({
   tone: "gold" | "teal";
 }) {
   return (
-    <div className="flex h-64 items-center">
+    <div className="relative h-64 w-full">
+      <div className="absolute top-1/2 h-px w-full bg-slate-700/70" />
       <div
         className={
           value >= 0
-            ? `mt-auto w-full rounded-t-sm ${tone === "gold" ? "bg-amber-400" : "bg-teal-300"}`
-            : `mb-auto w-full rounded-b-sm ${tone === "gold" ? "bg-amber-700" : "bg-rose-400"}`
+            ? `absolute bottom-1/2 w-full rounded-t-sm ${tone === "gold" ? "bg-amber-400" : "bg-teal-300"}`
+            : `absolute top-1/2 w-full rounded-b-sm ${tone === "gold" ? "bg-amber-700" : "bg-rose-400"}`
         }
         style={{ height }}
       />
