@@ -1,8 +1,14 @@
+import Link from "next/link";
+
 import { ComboWorkbench } from "@/components/combo-workbench";
-import { listComboSourceRuns } from "@/lib/db/repository";
+import { listComboSourceRuns, listSavedCombos } from "@/lib/db/repository";
+import { formatDate } from "@/lib/format";
 
 export default async function CombosPage() {
-  const runs = await listComboSourceRuns();
+  const [runs, savedCombos] = await Promise.all([
+    listComboSourceRuns(),
+    listSavedCombos(),
+  ]);
 
   return (
     <div className="grid gap-6">
@@ -15,6 +21,36 @@ export default async function CombosPage() {
           </p>
         </div>
       </section>
+      {savedCombos.length > 0 ? (
+        <section className="panel overflow-x-auto">
+          <div className="section-title">
+            <h2>Saved combos</h2>
+            <p>{savedCombos.length} saved research overlays.</p>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {savedCombos.map((combo) => (
+                <tr key={combo.id}>
+                  <td>
+                    <Link className="link-text" href={`/combos/${combo.id}`}>
+                      {combo.name}
+                    </Link>
+                  </td>
+                  <td>{combo.description || "n/a"}</td>
+                  <td>{formatDate(combo.updatedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
       {runs.length === 0 ? (
         <section className="panel grid min-h-80 place-items-center text-center">
           <div>

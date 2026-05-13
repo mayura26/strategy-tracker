@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { auth } from "@/auth";
-import { calculateDailyMetrics, calculateRunMetrics } from "@/lib/analytics";
 import {
   createBot,
   createBotMode,
@@ -18,7 +17,7 @@ import {
   setGoldenRun,
   upsertMarketBar,
 } from "@/lib/db/repository";
-import { parseNinjaTraderSummaryCsv } from "@/lib/imports/ninjatrader";
+import { buildImportPreview } from "@/lib/import-preview";
 import { fetchYahooDailyBars } from "@/lib/market/yahoo";
 
 const uploadSchema = z.object({
@@ -36,10 +35,13 @@ export async function uploadRunCsv(formData: FormData) {
   await requireUser();
 
   const file = formData.get("csvFile");
-
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Choose a NinjaTrader CSV export before importing.");
-  }
+  const providedRawCsv = String(formData.get("rawCsv") ?? "");
+  const rawCsv =
+    providedRawCsv.trim().length > 0
+      ? providedRawCsv
+      : file instanceof File
+        ? await file.text()
+        : "";
 
   const fields = uploadSchema.parse({
     botId: formData.get("botId"),
@@ -52,6 +54,10 @@ export async function uploadRunCsv(formData: FormData) {
     notes: formData.get("notes"),
   });
 
+  if (rawCsv.trim().length === 0) {
+    throw new Error("Choose a NinjaTrader CSV export before importing.");
+  }
+
   JSON.parse(fields.settingsJson);
   const instrument = await getInstrument(fields.instrumentId);
 
@@ -59,27 +65,38 @@ export async function uploadRunCsv(formData: FormData) {
     throw new Error("Choose a valid instrument.");
   }
 
-  const rawCsv = await file.text();
-  const parsed = parseNinjaTraderSummaryCsv(
-    rawCsv,
-    instrument.sessionStartHour,
-  );
-  const metrics = calculateRunMetrics(parsed.trades);
-  const dailyMetrics = calculateDailyMetrics(parsed.trades);
+  const preview = buildImportPreview(rawCsv, instrument.sessionStartHour);
   const runId = await insertImportedRun({
     ...fields,
-    fileName: file.name,
+    fileName: getImportFileName(formData, file),
     fileHash: createHash("sha256").update(rawCsv).digest("hex"),
     rawCsv,
-    importProfile: parsed.profile,
-    headers: parsed.headers,
-    metrics,
-    dailyMetrics,
-    trades: parsed.trades,
+    importProfile: preview.parsed.profile,
+    headers: preview.parsed.headers,
+    metrics: preview.metrics,
+    dailyMetrics: preview.dailyMetrics,
+    trades: preview.parsed.trades,
   });
 
   revalidatePath("/runs");
   redirect(`/runs/${runId}`);
+}
+
+function getImportFileName(
+  formData: FormData,
+  file: FormDataEntryValue | null,
+) {
+  const providedFileName = String(formData.get("fileName") ?? "").trim();
+
+  if (providedFileName) {
+    return providedFileName;
+  }
+
+  if (file instanceof File && file.name) {
+    return file.name;
+  }
+
+  return "ninjatrader-import.csv";
 }
 
 export async function createBotAction(formData: FormData) {

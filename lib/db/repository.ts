@@ -67,6 +67,15 @@ export type ComboSourceRun = RunSummary & {
   dailyMetrics: DailyRunMetric[];
 };
 
+export type SavedCombo = {
+  id: string;
+  name: string;
+  description: string;
+  configJson: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ComparisonRun = RunSummary & {
   dailyMetrics: DailyRunMetric[];
   tradePnls: number[];
@@ -550,6 +559,34 @@ export async function saveCombo(input: {
   });
 }
 
+export async function listSavedCombos(): Promise<SavedCombo[]> {
+  await ensureSchema();
+
+  const result = await client.execute(`
+    SELECT id, name, description, config_json, created_at, updated_at
+    FROM combos
+    ORDER BY updated_at DESC
+  `);
+
+  return result.rows.map(savedComboFromRow);
+}
+
+export async function getSavedCombo(id: string): Promise<SavedCombo | null> {
+  await ensureSchema();
+
+  const result = await client.execute({
+    sql: `
+      SELECT id, name, description, config_json, created_at, updated_at
+      FROM combos
+      WHERE id = ?
+    `,
+    args: [id],
+  });
+  const row = result.rows[0];
+
+  return row ? savedComboFromRow(row) : null;
+}
+
 export async function listInstruments(): Promise<InstrumentOption[]> {
   await ensureSchema();
 
@@ -884,6 +921,17 @@ function mapRunSummary(row: Record<string, unknown>): RunSummary {
     lastTradeAt: stringOrNull(row.last_trade_at),
     createdAt: String(row.created_at),
     isGolden: Number(row.is_golden) === 1,
+  };
+}
+
+function savedComboFromRow(row: Record<string, unknown>): SavedCombo {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    description: String(row.description),
+    configJson: String(row.config_json),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
   };
 }
 

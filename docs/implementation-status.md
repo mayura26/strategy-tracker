@@ -12,6 +12,7 @@ Last updated: 2026-05-13
 - Curated bot, bot-mode, and instrument management under `/settings`; imports select bot, mode, and instrument from dropdowns.
 - NinjaTrader Strategy Analyzer summary CSV parser for the example export in `examples/`.
 - Import form for missing metadata: bot, bot mode, instrument, run name, timeframe, settings JSON, tags, notes.
+- Import preview/confirmation flow showing parsed trade count, date range, first/last trade, core metrics, largest daily moves, and data-quality warnings before saving.
 - Bot load text paste parser that can auto-select saved bot, mode, and instrument from lines like `Bot loaded:`, `Mode:`, and `Instrument:`.
 - Raw CSV storage with SHA-256 hash and normalized trade rows.
 - Run library, run detail page, golden baseline pinning, compare page, combo workbench, and market-data page.
@@ -19,22 +20,24 @@ Last updated: 2026-05-13
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`.
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
+- Run detail threshold discovery that ranks ATR, range, gap, and absolute-gap conditions by average-PnL lift.
 - Run detail golden day-difference table showing largest daily divergences vs the pinned baseline.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
+- Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, and contribution days.
 - Visual comparison workspace with scoped run selection, core metric bars, filtered daily PnL overlays, box plots, and dot/strip plots.
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.
-- Tests for CSV parsing, currency parsing, session trading-date assignment, and run/daily metrics.
+- Tests for CSV parsing, import preview, currency parsing, session trading-date assignment, run/daily metrics, comparison analytics, combo analytics, and regime threshold discovery.
 
 ## Partially Implemented Or Deferred
 
 - Drizzle ORM schema definitions exist, but there is no Drizzle migration CLI workflow yet; schema is currently initialized at runtime.
-- CSV upload imports immediately; there is no separate preview/confirm/reprocess screen.
+- CSV imports now preview before saving, but there is no stored reprocess workflow for old imports yet.
 - Instruments must be created in settings before import; session start hour and Yahoo symbol are stored per instrument.
-- Regime discovery is currently descriptive, not ML/rule-mining; it shows ATR/range buckets but does not yet propose optimized thresholds.
+- Regime discovery is currently heuristic; it proposes ranked thresholds but does not yet train ML models or validate rules out of sample.
 - Comparison charts use custom SVG/HTML primitives; there is no zoom/brush interaction yet.
-- Combo analysis has overlap buckets and contribution days, but saved combo detail pages are not built yet.
+- Saved combo pages show stored weighted results, but there is not yet an edit/delete workflow for saved combos.
 - Golden comparison has a day-difference table, but no filtering/drilldown controls yet.
 - The current NT export does not include side, entry/exit prices, quantity, or holding time, so those analyses are not possible until a richer export is added.
 - Python/ML is documented only; no Next.js API stub or Python service is implemented.
@@ -65,9 +68,8 @@ If `BACKUP_DIR` is absent, backups are written to `./backups`, which is also ign
 
 ## Recommended Next Steps
 
-1. Add an import preview/confirmation page that shows parsed row count, first/last trade, total PnL, date range, and warnings before saving.
-2. Add zoom/brush and richer tooltips to comparison charts if the custom primitives become too limited.
-3. Add an automatic threshold discovery panel for ATR/range/gap conditions.
-4. Add saved combo detail pages with historical combo results.
-5. Add Drizzle migration scripts so Turso schema changes are explicit and reproducible.
-6. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
+1. Add zoom/brush and richer tooltips to comparison charts if the custom primitives become too limited.
+2. Add edit/delete controls for saved combos.
+3. Add Drizzle migration scripts so Turso schema changes are explicit and reproducible.
+4. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
+5. Add out-of-sample validation for discovered ATR/range/gap thresholds.

@@ -14,6 +14,7 @@ import {
   formatPercent,
   toneClass,
 } from "@/lib/format";
+import { discoverRegimeThresholds } from "@/lib/regime-discovery";
 
 export default async function RunDetailPage({
   params,
@@ -59,6 +60,7 @@ export default async function RunDetailPage({
     run.goldenRun?.dailyMetrics ?? [],
   );
   const regimeStats = buildRegimeStats(run.dailyMetrics, run.marketBars);
+  const thresholdSuggestions = discoverRegimeThresholds(regimeStats.joinedDays);
   const goldenDayRows = buildGoldenDayRows(
     run.dailyMetrics,
     run.goldenRun?.dailyMetrics ?? [],
@@ -206,6 +208,62 @@ export default async function RunDetailPage({
           </table>
         </div>
       </section>
+
+      {thresholdSuggestions.length > 0 ? (
+        <section className="panel overflow-x-auto">
+          <div className="section-title">
+            <h2>Threshold discovery</h2>
+            <p>Ranked conditions from cached market bars and daily PnL.</p>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Signal</th>
+                <th>Action</th>
+                <th>Days</th>
+                <th>Avg PnL</th>
+                <th>Other avg</th>
+                <th>Lift</th>
+                <th>Win rate</th>
+                <th>Total PnL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {thresholdSuggestions.map((suggestion) => (
+                <tr key={suggestion.key}>
+                  <td>{suggestion.condition}</td>
+                  <td
+                    className={
+                      suggestion.action === "favor"
+                        ? "text-emerald-300"
+                        : "text-rose-300"
+                    }
+                  >
+                    {suggestion.action === "favor" ? "Favor" : "Avoid"}
+                  </td>
+                  <td>
+                    {suggestion.selectedCount} /{" "}
+                    {suggestion.selectedCount + suggestion.otherCount}
+                  </td>
+                  <td className={toneClass(suggestion.selectedAveragePnl)}>
+                    {formatCurrency(suggestion.selectedAveragePnl)}
+                  </td>
+                  <td className={toneClass(suggestion.otherAveragePnl)}>
+                    {formatCurrency(suggestion.otherAveragePnl)}
+                  </td>
+                  <td className={toneClass(suggestion.lift)}>
+                    {formatCurrency(suggestion.lift)}
+                  </td>
+                  <td>{formatPercent(suggestion.selectedWinRate)}</td>
+                  <td className={toneClass(suggestion.selectedTotalPnl)}>
+                    {formatCurrency(suggestion.selectedTotalPnl)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
 
       {run.goldenRun ? (
         <section className="panel overflow-x-auto">
