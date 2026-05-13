@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "biome check",
     "test": "tsx tests/ninjatrader.test.ts",
+    "backup:db": "tsx scripts/backup-db.ts",
     "format": "biome format --write"
   },
   "dependencies": {

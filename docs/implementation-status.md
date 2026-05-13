@@ -19,6 +19,7 @@ Last updated: 2026-05-12
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`.
 - Python analysis service contract in `docs/python-analysis-service.md`.
+- Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.
 - Tests for CSV parsing, currency parsing, session trading-date assignment, and run/daily metrics.
 
 ## Partially Implemented Or Deferred
@@ -41,6 +42,7 @@ npm run dev
 npm run test
 npm run lint
 npm run build
+npm run backup:db
 ```
 
 ## Required Environment
@@ -50,9 +52,11 @@ AUTH_SECRET=...
 STRATEGY_TRACKER_PASSWORD=...
 TURSO_DATABASE_URL=...
 TURSO_AUTH_TOKEN=...
+BACKUP_DIR=...
 ```
 
 If `TURSO_DATABASE_URL` is absent, the app uses `strategy-tracker.local.db`, which is ignored by git.
+If `BACKUP_DIR` is absent, backups are written to `./backups`, which is also ignored by git.
 
 ## Recommended Next Steps
 

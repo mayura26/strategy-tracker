@@ -35,6 +35,9 @@ yarn-error.log*
 *.local.db-shm
 *.local.db-wal
 
+# local backups
+backups/
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example

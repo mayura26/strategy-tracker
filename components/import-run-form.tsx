@@ -19,6 +19,7 @@ export function ImportRunForm({
     firstBotWithMode?.modes[0]?.id ?? "",
   );
   const [instrumentId, setInstrumentId] = useState(instruments[0]?.id ?? "");
+  const [timeframe, setTimeframe] = useState("");
   const [pasteMessage, setPasteMessage] = useState("");
   const selectedBot = useMemo(
     () => bots.find((bot) => bot.id === botId) ?? bots[0],
@@ -50,12 +51,17 @@ export function ImportRunForm({
               setInstrumentId(result.instrumentId);
             }
 
+            if (result.timeframe) {
+              setTimeframe(result.timeframe);
+            }
+
             setPasteMessage(result.message);
           }}
           placeholder={`[Tempest] Bot loaded: Tempest
 [Tempest] Mode: Cyclone
 [Tempest] Account: Playback101
-[Tempest] Instrument: SIL`}
+[Tempest] Instrument: SIL
+[Tempest] Timeframe: 30s`}
         />
         {pasteMessage ? (
           <span className="quiet-text text-sm">{pasteMessage}</span>
@@ -121,7 +127,13 @@ export function ImportRunForm({
             ))}
           </select>
         </label>
-        <Field label="Timeframe" name="timeframe" placeholder="5m" />
+        <Field
+          label="Timeframe"
+          name="timeframe"
+          onChange={setTimeframe}
+          placeholder="5m"
+          value={timeframe}
+        />
         <Field label="Tags" name="tags" placeholder="grid, overnight" />
       </div>
       <label className="grid gap-2">
@@ -189,11 +201,12 @@ function applyLoadText(
     botId: bot?.id,
     botModeId: mode?.id,
     instrumentId: instrument?.id,
+    timeframe: parsed.timeframe,
     message:
       missing.length > 0
         ? `No saved ${missing.join(", ")} found. Add it in Settings first.`
-        : parsed.bot || parsed.mode || parsed.instrument
-          ? "Matched saved bot, mode, and instrument where available."
+        : parsed.bot || parsed.mode || parsed.instrument || parsed.timeframe
+          ? "Matched saved fields and timeframe where available."
           : "",
   };
 }
@@ -203,6 +216,7 @@ function parseLoadText(text: string) {
     bot: findField(text, /Bot loaded:\s*([^\r\n]+)/i),
     mode: findField(text, /Mode:\s*([^\r\n]+)/i),
     instrument: findField(text, /Instrument:\s*([^\r\n]+)/i),
+    timeframe: findField(text, /Timeframe:\s*([^\r\n]+)/i),
   };
 }
 
@@ -220,23 +234,28 @@ function Field({
   placeholder,
   type = "text",
   value,
+  onChange,
 }: {
   label: string;
   name: string;
   placeholder: string;
   type?: string;
   value?: string;
+  onChange?: (value: string) => void;
 }) {
   return (
     <label className="grid gap-2">
       <span className="label-text">{label}</span>
       <input
         className="input"
-        defaultValue={value}
+        onChange={
+          onChange ? (event) => onChange(event.target.value) : undefined
+        }
         name={name}
         placeholder={placeholder}
         required={["runName", "instrumentSymbol", "timeframe"].includes(name)}
         type={type}
+        value={value}
       />
     </label>
   );
