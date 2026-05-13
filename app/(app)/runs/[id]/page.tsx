@@ -2,7 +2,12 @@ import { Crown } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { setGoldenRunAction } from "@/app/actions";
-import { DailyBars, EquityCurve, PnlDistribution } from "@/components/charts";
+import {
+  DailyBars,
+  EquityCurve,
+  MarketPerformanceChart,
+  PnlDistribution,
+} from "@/components/charts";
 import type { DailyRunMetric } from "@/lib/analytics";
 import { calculateGoldenDelta, calculateRunMetrics } from "@/lib/analytics";
 import type { MarketBar } from "@/lib/db/repository";
@@ -144,6 +149,12 @@ export default async function RunDetailPage({
           <PnlDistribution trades={run.trades} />
         </div>
       </section>
+
+      <MarketPerformanceChart
+        bars={run.marketBars}
+        days={run.dailyMetrics}
+        instrumentSymbol={run.instrumentSymbol}
+      />
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
         <div className="panel">

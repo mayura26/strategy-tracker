@@ -20,6 +20,7 @@ Last updated: 2026-05-13
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`.
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
+- Run detail underlying instrument chart with cached OHLC candlesticks and daily PnL bars.
 - Run detail threshold discovery that ranks ATR, range, gap, and absolute-gap conditions by average-PnL lift and out-of-sample validation lift.
 - Run detail golden day-difference table showing largest daily divergences vs the pinned baseline.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
