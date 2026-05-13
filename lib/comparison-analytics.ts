@@ -282,6 +282,23 @@ export function filterAlignedDays(
   });
 }
 
+export function countSingleRunDays(
+  days: AlignedDay[],
+  side: "golden" | "candidate",
+) {
+  return days.filter((day) =>
+    side === "golden"
+      ? day.goldenTrades > 0 && day.candidateTrades === 0
+      : day.candidateTrades > 0 && day.goldenTrades === 0,
+  ).length;
+}
+
+export function sortAlignedDaysNewestFirst(days: AlignedDay[]) {
+  return [...days].sort((left, right) =>
+    right.tradingDate.localeCompare(left.tradingDate),
+  );
+}
+
 export function quantile(sortedValues: number[], percentile: number) {
   if (sortedValues.length === 0) {
     return 0;

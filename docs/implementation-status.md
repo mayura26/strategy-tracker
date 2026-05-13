@@ -22,7 +22,7 @@ Last updated: 2026-05-13
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
 - Run detail underlying instrument chart with cached OHLC candlesticks and daily PnL bars.
 - Run detail threshold discovery that ranks ATR, range, gap, and absolute-gap conditions by average-PnL lift and out-of-sample validation lift.
-- Run detail golden day-difference table showing largest daily divergences vs the pinned baseline.
+- Run detail golden daily drilldown with overlap coverage, filters, outperformance thresholds, visual PnL overlay, delta histogram, and collapsible day table.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
 - Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, and contribution days.
 - Visual comparison workspace with scoped run selection, overlap-only or union date handling, core metric bars, outperformance-vs counts with material-delta filtering, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, box plots, and dot/strip plots.
@@ -39,7 +39,6 @@ Last updated: 2026-05-13
 - Regime discovery is currently heuristic; it proposes ranked thresholds with chronological validation, but does not yet train ML models.
 - Comparison charts use custom SVG/HTML primitives; there is no zoom/brush interaction yet.
 - Saved combo pages support edit/delete, but there is not yet version history for combo changes.
-- Golden comparison has a day-difference table, but no filtering/drilldown controls yet.
 - The current NT export does not include side, entry/exit prices, quantity, or holding time, so those analyses are not possible until a richer export is added.
 - Python/ML is documented only; no Next.js API stub or Python service is implemented.
 - Browser/integration tests for login, bot/mode/instrument creation, import, golden pinning, combos, and market refresh are still needed.

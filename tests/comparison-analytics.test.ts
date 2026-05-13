@@ -1,7 +1,9 @@
 import {
   alignDailyPnL,
   buildHistogram,
+  countSingleRunDays,
   filterAlignedDays,
+  sortAlignedDaysNewestFirst,
   summarizeDistribution,
   summarizeOutcomes,
   summarizeOutperformance,
@@ -61,6 +63,17 @@ assertEqual(
   overlapAligned.at(-1)?.tradingDate,
   "2026-01-03",
   "overlap excludes single-run dates",
+);
+assertEqual(countSingleRunDays(aligned, "golden"), 1, "golden-only day count");
+assertEqual(
+  countSingleRunDays(aligned, "candidate"),
+  1,
+  "candidate-only day count",
+);
+assertEqual(
+  sortAlignedDaysNewestFirst(overlapAligned)[0].tradingDate,
+  "2026-01-03",
+  "newest-first aligned days",
 );
 
 const outperformance = summarizeOutperformance(aligned, 100);

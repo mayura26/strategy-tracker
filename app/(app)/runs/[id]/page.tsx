@@ -8,6 +8,7 @@ import {
   MarketPerformanceChart,
   PnlDistribution,
 } from "@/components/charts";
+import { GoldenDailyDrilldown } from "@/components/golden-daily-drilldown";
 import type { DailyRunMetric } from "@/lib/analytics";
 import { calculateGoldenDelta, calculateRunMetrics } from "@/lib/analytics";
 import type { MarketBar } from "@/lib/db/repository";
@@ -66,10 +67,6 @@ export default async function RunDetailPage({
   );
   const regimeStats = buildRegimeStats(run.dailyMetrics, run.marketBars);
   const thresholdSuggestions = discoverRegimeThresholds(regimeStats.joinedDays);
-  const goldenDayRows = buildGoldenDayRows(
-    run.dailyMetrics,
-    run.goldenRun?.dailyMetrics ?? [],
-  );
 
   return (
     <div className="grid gap-6">
@@ -296,42 +293,20 @@ export default async function RunDetailPage({
       ) : null}
 
       {run.goldenRun ? (
-        <section className="panel overflow-x-auto">
-          <div className="section-title">
-            <h2>Golden day differences</h2>
-            <p>Largest daily divergences vs {run.goldenRun.name}.</p>
-          </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>This run</th>
-                <th>Golden</th>
-                <th>Delta</th>
-                <th>Trades</th>
-                <th>Golden trades</th>
-              </tr>
-            </thead>
-            <tbody>
-              {goldenDayRows.slice(0, 24).map((day) => (
-                <tr key={day.tradingDate}>
-                  <td>{day.tradingDate}</td>
-                  <td className={toneClass(day.runPnl)}>
-                    {formatCurrency(day.runPnl)}
-                  </td>
-                  <td className={toneClass(day.goldenPnl)}>
-                    {formatCurrency(day.goldenPnl)}
-                  </td>
-                  <td className={toneClass(day.delta)}>
-                    {formatCurrency(day.delta)}
-                  </td>
-                  <td>{day.runTrades}</td>
-                  <td>{day.goldenTrades}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+        <GoldenDailyDrilldown
+          currentCoverage={{
+            end: run.coverageEndDate,
+            start: run.coverageStartDate,
+          }}
+          currentDays={run.dailyMetrics}
+          currentName={run.name}
+          goldenCoverage={{
+            end: run.goldenRun.coverageEndDate,
+            start: run.goldenRun.coverageStartDate,
+          }}
+          goldenDays={run.goldenRun.dailyMetrics}
+          goldenName={run.goldenRun.name}
+        />
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
@@ -455,33 +430,6 @@ function formatRunCoverage(run: {
   }
 
   return `${run.coverageStartDate} to ${run.coverageEndDate}`;
-}
-
-function buildGoldenDayRows(
-  runDays: DailyRunMetric[],
-  goldenDays: DailyRunMetric[],
-) {
-  const runMap = new Map(runDays.map((day) => [day.tradingDate, day]));
-  const goldenMap = new Map(goldenDays.map((day) => [day.tradingDate, day]));
-  const keys = new Set([...runMap.keys(), ...goldenMap.keys()]);
-
-  return [...keys]
-    .map((tradingDate) => {
-      const runDay = runMap.get(tradingDate);
-      const goldenDay = goldenMap.get(tradingDate);
-      const runPnl = runDay?.netProfit ?? 0;
-      const goldenPnl = goldenDay?.netProfit ?? 0;
-
-      return {
-        tradingDate,
-        runPnl,
-        goldenPnl,
-        delta: runPnl - goldenPnl,
-        runTrades: runDay?.tradeCount ?? 0,
-        goldenTrades: goldenDay?.tradeCount ?? 0,
-      };
-    })
-    .sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta));
 }
 
 function buildRegimeStats(days: DailyRunMetric[], bars: MarketBar[]) {
