@@ -1,8 +1,7 @@
 import type { DailyRunMetric } from "@/lib/analytics";
-import { buildDistribution } from "@/lib/analytics";
+import { buildDailyPnlDistribution } from "@/lib/analytics";
 import type { MarketBar } from "@/lib/db/repository";
 import { formatCurrency, formatNumber } from "@/lib/format";
-import type { NormalizedTradeSummary } from "@/lib/imports/ninjatrader";
 import { joinMarketPerformanceDays } from "@/lib/market-performance";
 
 export function EquityCurve({ days }: { days: DailyRunMetric[] }) {
@@ -79,29 +78,22 @@ export function DailyBars({ days }: { days: DailyRunMetric[] }) {
   );
 }
 
-export function PnlDistribution({
-  trades,
-}: {
-  trades: NormalizedTradeSummary[];
-}) {
-  const buckets = buildDistribution(
-    trades.map((trade) => trade.netProfit),
-    14,
-  );
+export function DailyPnlDistribution({ days }: { days: DailyRunMetric[] }) {
+  const buckets = buildDailyPnlDistribution(days, 14);
   const maxCount = Math.max(...buckets.map((bucket) => bucket.count), 1);
 
   return (
     <div className="chart-panel">
       <div className="chart-heading">
-        <span>PnL distribution</span>
-        <span>{trades.length} trades</span>
+        <span>Daily PnL distribution</span>
+        <span>{days.length} sessions</span>
       </div>
       <div className="grid grid-cols-[3.5rem_1fr] gap-3">
         <div className="quiet-text grid h-60 grid-rows-[2rem_1fr] text-right text-[0.65rem] leading-none">
           <span />
           <div className="grid grid-rows-3 py-2">
             <span>{maxCount}</span>
-            <span className="self-center">Trades</span>
+            <span className="self-center">Days</span>
             <span className="self-end">0</span>
           </div>
         </div>
@@ -132,7 +124,7 @@ export function PnlDistribution({
               <div
                 className="flex h-52 items-end border-b border-slate-800"
                 key={`${bucket.start}-${bucket.end}`}
-                title={`${formatBucket(bucket.start, bucket.end)}: ${bucket.count} trades`}
+                title={`${formatBucket(bucket.start, bucket.end)}: ${bucket.count} days`}
               >
                 <div
                   className={

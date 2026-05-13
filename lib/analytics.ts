@@ -177,6 +177,16 @@ export function buildDistribution(values: number[], bucketCount = 12) {
   return buckets;
 }
 
+export function buildDailyPnlDistribution(
+  days: DailyRunMetric[],
+  bucketCount = 12,
+) {
+  return buildDistribution(
+    days.map((day) => day.netProfit),
+    bucketCount,
+  );
+}
+
 function emptyRunMetrics(): RunMetrics {
   return {
     tradeCount: 0,

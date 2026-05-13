@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import { setGoldenRunAction } from "@/app/actions";
 import {
   DailyBars,
+  DailyPnlDistribution,
   EquityCurve,
   MarketPerformanceChart,
-  PnlDistribution,
 } from "@/components/charts";
 import { GoldenDailyDrilldown } from "@/components/golden-daily-drilldown";
 import type { DailyRunMetric } from "@/lib/analytics";
@@ -143,7 +143,7 @@ export default async function RunDetailPage({
         </div>
         <DailyBars days={run.dailyMetrics} />
         <div className="xl:col-span-3">
-          <PnlDistribution trades={run.trades} />
+          <DailyPnlDistribution days={run.dailyMetrics} />
         </div>
       </section>
 

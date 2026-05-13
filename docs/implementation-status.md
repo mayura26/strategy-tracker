@@ -16,7 +16,7 @@ Last updated: 2026-05-13
 - Bot load text paste parser that can auto-select saved bot, mode, and instrument from lines like `Bot loaded:`, `Mode:`, and `Instrument:`.
 - Raw CSV storage with SHA-256 hash and normalized trade rows.
 - Run library, run detail page, data-period coverage markers, golden baseline pinning, compare page, combo workbench, and market-data page.
-- Charts for equity curve, daily PnL, and PnL distribution.
+- Day-centric charts for equity curve, daily PnL, and daily/session PnL distribution.
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`.
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
@@ -25,7 +25,7 @@ Last updated: 2026-05-13
 - Run detail golden daily drilldown with overlap coverage, filters, outperformance thresholds, visual PnL overlay, delta histogram, and collapsible day table.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
 - Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, contribution days, and version history snapshots.
-- Visual comparison workspace with scoped run selection, overlap-only or union date handling, core metric bars, outperformance-vs counts with material-delta filtering, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, box plots, and dot/strip plots.
+- Visual comparison workspace with scoped run selection, overlap-only or union date handling, core metric bars, outperformance-vs counts with material-delta filtering, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, and daily/session box and dot plots.
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, outperformance summaries, overlap/union daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.
@@ -38,9 +38,7 @@ Last updated: 2026-05-13
 - Instruments must be created in settings before import; session start hour and Yahoo symbol are stored per instrument.
 - Regime discovery is currently heuristic; it proposes ranked thresholds with chronological validation, but does not yet train ML models.
 - Comparison charts use custom SVG/HTML primitives; there is no zoom/brush interaction yet.
-- The current NT export does not include side, entry/exit prices, quantity, or holding time, so those analyses are not possible until a richer export is added.
 - Python/ML is documented only; no Next.js API stub or Python service is implemented.
-- Browser/integration tests for login, bot/mode/instrument creation, import, golden pinning, combos, and market refresh are still needed.
 
 ## Useful Commands
 

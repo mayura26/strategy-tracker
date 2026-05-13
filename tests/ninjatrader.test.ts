@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { calculateDailyMetrics, calculateRunMetrics } from "@/lib/analytics";
+import {
+  buildDailyPnlDistribution,
+  calculateDailyMetrics,
+  calculateRunMetrics,
+} from "@/lib/analytics";
 import {
   parseCurrency,
   parseNinjaTraderSummaryCsv,
@@ -17,6 +21,7 @@ const fixture = readFileSync(
 const parsed = parseNinjaTraderSummaryCsv(fixture);
 const runMetrics = calculateRunMetrics(parsed.trades);
 const dailyMetrics = calculateDailyMetrics(parsed.trades);
+const dailyDistribution = buildDailyPnlDistribution(dailyMetrics, 8);
 
 assertEqual(parsed.rowCount, 210, "row count");
 assertEqual(parsed.trades[0].tradeNumber, 1, "first trade number");
@@ -48,6 +53,15 @@ assertEqual(runMetrics.winCount, 96, "run wins");
 assertEqual(runMetrics.lossCount, 114, "run losses");
 assertOk(runMetrics.maxDrawdown <= 0, "drawdown is negative or flat");
 assertOk(dailyMetrics.length > 40, "daily metrics were created");
+assertEqual(
+  dailyDistribution.reduce((sum, bucket) => sum + bucket.count, 0),
+  dailyMetrics.length,
+  "daily PnL distribution counts sessions",
+);
+assertOk(
+  dailyDistribution.length <= 8,
+  "daily PnL distribution uses requested buckets",
+);
 assertEqual(
   dailyMetrics.at(-1)?.cumulativeNetProfit,
   15485,

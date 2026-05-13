@@ -91,7 +91,6 @@ export type ComboVersion = {
 
 export type ComparisonRun = RunSummary & {
   dailyMetrics: DailyRunMetric[];
-  tradePnls: number[];
 };
 
 export type ComparisonGroup = {
@@ -547,9 +546,6 @@ export async function listComparisonGroups(): Promise<ComparisonGroup[]> {
     runDetails.push({
       ...run,
       dailyMetrics: await listDailyMetricsForRun(run.id),
-      tradePnls: (await listTradesForRun(run.id)).map(
-        (trade) => trade.netProfit,
-      ),
     });
   }
 

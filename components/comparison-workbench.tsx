@@ -256,18 +256,7 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
         <DailyHistogramComparison runs={scopedRuns} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <DistributionPanel
-          runs={[golden, candidate]}
-          title="Trade PnL distribution"
-          valueType="trade"
-        />
-        <DistributionPanel
-          runs={scopedRuns}
-          title="Daily PnL distribution"
-          valueType="daily"
-        />
-      </section>
+      <DistributionPanel runs={scopedRuns} title="Daily PnL distribution" />
     </div>
   );
 }
@@ -944,18 +933,13 @@ function Bar({
 function DistributionPanel({
   runs,
   title,
-  valueType,
 }: {
   runs: ComparisonRun[];
   title: string;
-  valueType: "trade" | "daily";
 }) {
   const series = runs.map((run) => ({
     run,
-    values:
-      valueType === "trade"
-        ? run.tradePnls
-        : run.dailyMetrics.map((day) => day.netProfit),
+    values: run.dailyMetrics.map((day) => day.netProfit),
   }));
   const allValues = series.flatMap((item) => item.values);
   const min = Math.min(...allValues, 0);
@@ -974,7 +958,7 @@ function DistributionPanel({
       <div className="grid gap-5">
         {series.map(({ run, values }) => (
           <BoxPlotRow
-            key={`${valueType}-${run.id}`}
+            key={`daily-${run.id}`}
             max={max}
             min={min}
             run={run}
