@@ -178,6 +178,20 @@ async function initializeSchema() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS combo_versions (
+      id TEXT PRIMARY KEY,
+      combo_id TEXT NOT NULL,
+      version_number INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      config_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS combo_versions_combo_idx
+      ON combo_versions(combo_id, version_number DESC);
   `);
 
   await addColumnIfMissing(

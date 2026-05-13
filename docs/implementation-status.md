@@ -8,7 +8,7 @@ Last updated: 2026-05-13
 - Auth.js credentials login using `STRATEGY_TRACKER_PASSWORD`; local dev fallback password is `strategy`.
 - `proxy.ts` route protection plus server-side auth checks in mutations.
 - Turso/libSQL database layer using `@libsql/client`; falls back to `strategy-tracker.local.db` when Turso env vars are absent.
-- Runtime SQLite schema initialization for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, and combos.
+- Runtime SQLite schema initialization for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, combos, and combo versions.
 - Curated bot, bot-mode, and instrument management under `/settings`; imports select bot, mode, and instrument from dropdowns.
 - NinjaTrader Strategy Analyzer summary CSV parser for the example export in `examples/`.
 - Import form for missing metadata: bot, bot mode, instrument, run name, timeframe, settings JSON, tags, notes.
@@ -24,7 +24,7 @@ Last updated: 2026-05-13
 - Run detail threshold discovery that ranks ATR, range, gap, and absolute-gap conditions by average-PnL lift and out-of-sample validation lift.
 - Run detail golden daily drilldown with overlap coverage, filters, outperformance thresholds, visual PnL overlay, delta histogram, and collapsible day table.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
-- Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, and contribution days.
+- Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, contribution days, and version history snapshots.
 - Visual comparison workspace with scoped run selection, overlap-only or union date handling, core metric bars, outperformance-vs counts with material-delta filtering, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, box plots, and dot/strip plots.
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, outperformance summaries, overlap/union daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`.
@@ -38,7 +38,6 @@ Last updated: 2026-05-13
 - Instruments must be created in settings before import; session start hour and Yahoo symbol are stored per instrument.
 - Regime discovery is currently heuristic; it proposes ranked thresholds with chronological validation, but does not yet train ML models.
 - Comparison charts use custom SVG/HTML primitives; there is no zoom/brush interaction yet.
-- Saved combo pages support edit/delete, but there is not yet version history for combo changes.
 - The current NT export does not include side, entry/exit prices, quantity, or holding time, so those analyses are not possible until a richer export is added.
 - Python/ML is documented only; no Next.js API stub or Python service is implemented.
 - Browser/integration tests for login, bot/mode/instrument creation, import, golden pinning, combos, and market refresh are still needed.
@@ -71,7 +70,6 @@ If `BACKUP_DIR` is absent, backups are written to `./backups`, which is also ign
 ## Recommended Next Steps
 
 1. Add zoom/brush and richer tooltips to comparison charts if the custom primitives become too limited.
-2. Add version history for saved combo changes.
-3. Add Drizzle migration scripts so Turso schema changes are explicit and reproducible.
-4. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
-5. Add richer ML-style validation for discovered ATR/range/gap thresholds.
+2. Add Drizzle migration scripts so Turso schema changes are explicit and reproducible.
+3. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
+4. Add richer ML-style validation for discovered ATR/range/gap thresholds.

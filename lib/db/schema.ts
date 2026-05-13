@@ -221,3 +221,23 @@ export const combos = sqliteTable("combos", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const comboVersions = sqliteTable(
+  "combo_versions",
+  {
+    id: text("id").primaryKey(),
+    comboId: text("combo_id").notNull(),
+    versionNumber: integer("version_number").notNull(),
+    action: text("action").notNull(),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    configJson: text("config_json").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => ({
+    comboIndex: index("combo_versions_combo_idx").on(
+      table.comboId,
+      table.versionNumber,
+    ),
+  }),
+);

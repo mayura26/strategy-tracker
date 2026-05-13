@@ -78,6 +78,17 @@ export type SavedCombo = {
   updatedAt: string;
 };
 
+export type ComboVersion = {
+  id: string;
+  comboId: string;
+  versionNumber: number;
+  action: "created" | "updated" | "deleted" | "current";
+  name: string;
+  description: string;
+  configJson: string;
+  createdAt: string;
+};
+
 export type ComparisonRun = RunSummary & {
   dailyMetrics: DailyRunMetric[];
   tradePnls: number[];
@@ -564,18 +575,21 @@ export async function saveCombo(input: {
   await ensureSchema();
 
   const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+
   await client.execute({
     sql: `INSERT INTO combos (
       id, name, description, config_json, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [
-      crypto.randomUUID(),
-      input.name,
-      input.description,
-      input.configJson,
-      now,
-      now,
-    ],
+    args: [id, input.name, input.description, input.configJson, now, now],
+  });
+  await insertComboVersion({
+    action: "created",
+    comboId: id,
+    configJson: input.configJson,
+    createdAt: now,
+    description: input.description,
+    name: input.name,
   });
 }
 
@@ -587,23 +601,45 @@ export async function updateSavedCombo(input: {
 }) {
   await ensureSchema();
 
+  if (!(await getSavedCombo(input.id))) {
+    throw new Error("Combo not found.");
+  }
+
+  const now = new Date().toISOString();
+
   await client.execute({
     sql: `UPDATE combos
       SET name = ?, description = ?, config_json = ?, updated_at = ?
       WHERE id = ?`,
-    args: [
-      input.name,
-      input.description,
-      input.configJson,
-      new Date().toISOString(),
-      input.id,
-    ],
+    args: [input.name, input.description, input.configJson, now, input.id],
+  });
+  await insertComboVersion({
+    action: "updated",
+    comboId: input.id,
+    configJson: input.configJson,
+    createdAt: now,
+    description: input.description,
+    name: input.name,
   });
 }
 
 export async function deleteSavedCombo(id: string) {
   await ensureSchema();
 
+  const existing = await getSavedCombo(id);
+
+  if (!existing) {
+    throw new Error("Combo not found.");
+  }
+
+  await insertComboVersion({
+    action: "deleted",
+    comboId: id,
+    configJson: existing.configJson,
+    createdAt: new Date().toISOString(),
+    description: existing.description,
+    name: existing.name,
+  });
   await client.execute({
     sql: `DELETE FROM combos WHERE id = ?`,
     args: [id],
@@ -636,6 +672,39 @@ export async function getSavedCombo(id: string): Promise<SavedCombo | null> {
   const row = result.rows[0];
 
   return row ? savedComboFromRow(row) : null;
+}
+
+export async function listComboVersions(
+  combo: SavedCombo,
+): Promise<ComboVersion[]> {
+  await ensureSchema();
+
+  const result = await client.execute({
+    sql: `SELECT id, combo_id, version_number, action, name, description,
+        config_json, created_at
+      FROM combo_versions
+      WHERE combo_id = ?
+      ORDER BY version_number DESC`,
+    args: [combo.id],
+  });
+  const versions = result.rows.map(comboVersionFromRow);
+
+  if (versions.length > 0) {
+    return versions;
+  }
+
+  return [
+    {
+      action: "current",
+      comboId: combo.id,
+      configJson: combo.configJson,
+      createdAt: combo.createdAt,
+      description: combo.description,
+      id: combo.id,
+      name: combo.name,
+      versionNumber: 1,
+    },
+  ];
 }
 
 export async function listInstruments(): Promise<InstrumentOption[]> {
@@ -994,6 +1063,66 @@ function savedComboFromRow(row: Record<string, unknown>): SavedCombo {
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
+}
+
+function comboVersionFromRow(row: Record<string, unknown>): ComboVersion {
+  return {
+    id: String(row.id),
+    comboId: String(row.combo_id),
+    versionNumber: Number(row.version_number),
+    action: comboVersionAction(row.action),
+    name: String(row.name),
+    description: String(row.description),
+    configJson: String(row.config_json),
+    createdAt: String(row.created_at),
+  };
+}
+
+async function insertComboVersion(input: {
+  comboId: string;
+  action: ComboVersion["action"];
+  name: string;
+  description: string;
+  configJson: string;
+  createdAt: string;
+}) {
+  const versionResult = await client.execute({
+    sql: `SELECT COALESCE(MAX(version_number), 0) + 1 AS next_version
+      FROM combo_versions
+      WHERE combo_id = ?`,
+    args: [input.comboId],
+  });
+  const versionNumber = Number(versionResult.rows[0]?.next_version ?? 1);
+
+  await client.execute({
+    sql: `INSERT INTO combo_versions (
+      id, combo_id, version_number, action, name, description, config_json,
+      created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      crypto.randomUUID(),
+      input.comboId,
+      versionNumber,
+      input.action,
+      input.name,
+      input.description,
+      input.configJson,
+      input.createdAt,
+    ],
+  });
+}
+
+function comboVersionAction(value: unknown): ComboVersion["action"] {
+  if (
+    value === "created" ||
+    value === "updated" ||
+    value === "deleted" ||
+    value === "current"
+  ) {
+    return value;
+  }
+
+  return "updated";
 }
 
 function numberOrNull(value: unknown): number | null {

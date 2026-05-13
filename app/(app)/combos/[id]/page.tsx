@@ -9,8 +9,10 @@ import {
 } from "@/lib/combo-analytics";
 import {
   type ComboSourceRun,
+  type ComboVersion,
   getSavedCombo,
   listComboSourceRuns,
+  listComboVersions,
 } from "@/lib/db/repository";
 import {
   formatCurrency,
@@ -35,6 +37,7 @@ export default async function ComboDetailPage({
     notFound();
   }
 
+  const versions = await listComboVersions(combo);
   const config = parseComboConfig(combo.configJson);
   const weights = weightsFromComboConfig(config);
   const selectedRuns = runs.filter((run) => weights[run.id] !== undefined);
@@ -186,6 +189,8 @@ export default async function ComboDetailPage({
         </table>
       </section>
 
+      <ComboHistory versions={versions} />
+
       <section className="panel border-rose-400/30">
         <div className="section-title">
           <h2>Delete combo</h2>
@@ -200,6 +205,114 @@ export default async function ComboDetailPage({
       </section>
     </div>
   );
+}
+
+function ComboHistory({ versions }: { versions: ComboVersion[] }) {
+  return (
+    <section className="panel">
+      <div className="section-title">
+        <div>
+          <h2>Version history</h2>
+          <p>{versions.length} saved snapshots for this combo.</p>
+        </div>
+      </div>
+      <div className="grid gap-3">
+        {versions.map((version) => {
+          const config = parseComboConfig(version.configJson);
+          const weightTotal = config.reduce(
+            (sum, item) => sum + Math.abs(item.weight),
+            0,
+          );
+
+          return (
+            <details
+              className="subtle-card p-4"
+              key={`${version.id}-${version.versionNumber}`}
+            >
+              <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3">
+                <span className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-sm border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs font-bold uppercase text-slate-300">
+                    v{version.versionNumber}
+                  </span>
+                  <span className={comboActionClass(version.action)}>
+                    {version.action}
+                  </span>
+                  <span className="strong-text font-semibold">
+                    {version.name}
+                  </span>
+                </span>
+                <span className="quiet-text text-sm">
+                  {formatDate(version.createdAt)}
+                </span>
+              </summary>
+              <div className="mt-4 grid gap-3 text-sm">
+                <p className="quiet-text">
+                  {version.description || "No description saved."}
+                </p>
+                <div className="grid gap-2 md:grid-cols-3">
+                  <HistoryMetric
+                    label="Components"
+                    value={String(config.length)}
+                  />
+                  <HistoryMetric
+                    label="Abs weight"
+                    value={formatNumber(weightTotal)}
+                  />
+                  <HistoryMetric
+                    label="Saved"
+                    value={formatDate(version.createdAt)}
+                  />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Run id</th>
+                        <th>Weight</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {config.map((item) => (
+                        <tr key={`${version.id}-${item.runId}`}>
+                          <td className="font-mono text-xs">{item.runId}</td>
+                          <td>{formatNumber(item.weight)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function HistoryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mini-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function comboActionClass(action: ComboVersion["action"]) {
+  if (action === "created") {
+    return "rounded-sm bg-teal-400/10 px-2 py-1 text-xs font-bold uppercase text-teal-200";
+  }
+
+  if (action === "deleted") {
+    return "rounded-sm bg-rose-400/10 px-2 py-1 text-xs font-bold uppercase text-rose-200";
+  }
+
+  if (action === "current") {
+    return "rounded-sm bg-sky-400/10 px-2 py-1 text-xs font-bold uppercase text-sky-200";
+  }
+
+  return "rounded-sm bg-amber-400/10 px-2 py-1 text-xs font-bold uppercase text-amber-200";
 }
 
 function ComponentRow({
