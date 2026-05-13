@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
-    "test": "tsx tests/ninjatrader.test.ts",
+    "test": "tsx tests/run-tests.ts",
     "backup:db": "tsx scripts/backup-db.ts",
     "format": "biome format --write"
   },

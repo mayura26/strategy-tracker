@@ -7,6 +7,7 @@ import {
   parseNinjaTraderSummaryCsv,
 } from "@/lib/imports/ninjatrader";
 import { tradingDateFromNtPeriod } from "@/lib/time";
+import { assertEqual, assertOk } from "@/tests/assert";
 
 const fixture = readFileSync(
   join(process.cwd(), "examples", "NinjaTrader Grid 2026-05-12 02-34 AM.csv"),
@@ -54,15 +55,3 @@ assertEqual(
 );
 
 console.log("NinjaTrader importer tests passed.");
-
-function assertEqual<T>(actual: T, expected: T, label: string) {
-  if (actual !== expected) {
-    throw new Error(`${label}: expected ${expected}, received ${actual}`);
-  }
-}
-
-function assertOk(value: boolean, label: string) {
-  if (!value) {
-    throw new Error(`${label}: assertion failed`);
-  }
-}

@@ -30,6 +30,7 @@ export type RunDetail = RunSummary & {
   notes: string;
   trades: NormalizedTradeSummary[];
   dailyMetrics: DailyRunMetric[];
+  marketBars: MarketBar[];
   goldenRun: (RunSummary & { dailyMetrics: DailyRunMetric[] }) | null;
   importInfo: {
     fileName: string;
@@ -66,6 +67,16 @@ export type ComboSourceRun = RunSummary & {
   dailyMetrics: DailyRunMetric[];
 };
 
+export type ComparisonRun = RunSummary & {
+  dailyMetrics: DailyRunMetric[];
+  tradePnls: number[];
+};
+
+export type ComparisonGroup = {
+  scope: string;
+  runs: ComparisonRun[];
+};
+
 export type MarketRow = {
   instrumentId: string;
   symbol: string;
@@ -75,6 +86,20 @@ export type MarketRow = {
   atr14: number | null;
   sourceStatus: string | null;
   fetchedAt: string | null;
+};
+
+export type MarketBar = {
+  tradingDate: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volume: number | null;
+  trueRange: number | null;
+  atr14: number | null;
+  range: number | null;
+  gap: number | null;
+  sourceStatus: string;
 };
 
 type InsertImportedRunInput = {
@@ -276,6 +301,9 @@ export async function getRunDetail(id: string): Promise<RunDetail | null> {
   const summary = mapRunSummary(row);
   const trades = await listTradesForRun(id);
   const dailyMetrics = await listDailyMetricsForRun(id);
+  const marketBars = await listMarketBarsForInstrument(
+    String(row.instrument_id),
+  );
   const goldenRun = await getGoldenRunForScope(
     String(row.bot_id),
     stringOrNull(row.bot_mode_id),
@@ -292,6 +320,7 @@ export async function getRunDetail(id: string): Promise<RunDetail | null> {
     notes: String(row.notes),
     trades,
     dailyMetrics,
+    marketBars,
     goldenRun,
     importInfo,
   };
@@ -470,6 +499,34 @@ export async function listComboSourceRuns(): Promise<ComboSourceRun[]> {
   return sourceRuns;
 }
 
+export async function listComparisonGroups(): Promise<ComparisonGroup[]> {
+  const runs = await listRuns();
+  const runDetails: ComparisonRun[] = [];
+
+  for (const run of runs) {
+    runDetails.push({
+      ...run,
+      dailyMetrics: await listDailyMetricsForRun(run.id),
+      tradePnls: (await listTradesForRun(run.id)).map(
+        (trade) => trade.netProfit,
+      ),
+    });
+  }
+
+  const groups = runDetails.reduce((map, run) => {
+    const scope = `${run.botName} / ${run.botModeName ?? "No mode"} / ${run.instrumentSymbol} / ${run.timeframe}`;
+    const scopedRuns = map.get(scope) ?? [];
+    scopedRuns.push(run);
+    map.set(scope, scopedRuns);
+    return map;
+  }, new Map<string, ComparisonRun[]>());
+
+  return [...groups.entries()].map(([scope, scopedRuns]) => ({
+    scope,
+    runs: scopedRuns,
+  }));
+}
+
 export async function saveCombo(input: {
   name: string;
   description: string;
@@ -573,6 +630,35 @@ export async function listMarketRows(): Promise<MarketRow[]> {
     atr14: numberOrNull(row.atr14),
     sourceStatus: stringOrNull(row.source_status),
     fetchedAt: stringOrNull(row.fetched_at),
+  }));
+}
+
+export async function listMarketBarsForInstrument(
+  instrumentId: string,
+): Promise<MarketBar[]> {
+  await ensureSchema();
+
+  const result = await client.execute({
+    sql: `SELECT trading_date, open, high, low, close, volume, true_range,
+        atr14, range, gap, source_status
+      FROM market_bars
+      WHERE instrument_id = ?
+      ORDER BY trading_date ASC`,
+    args: [instrumentId],
+  });
+
+  return result.rows.map((row) => ({
+    tradingDate: String(row.trading_date),
+    open: numberOrNull(row.open),
+    high: numberOrNull(row.high),
+    low: numberOrNull(row.low),
+    close: numberOrNull(row.close),
+    volume: numberOrNull(row.volume),
+    trueRange: numberOrNull(row.true_range),
+    atr14: numberOrNull(row.atr14),
+    range: numberOrNull(row.range),
+    gap: numberOrNull(row.gap),
+    sourceStatus: String(row.source_status),
   }));
 }
 

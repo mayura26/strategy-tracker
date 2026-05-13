@@ -1,6 +1,6 @@
 # Strategy Tracker Implementation Status
 
-Last updated: 2026-05-12
+Last updated: 2026-05-13
 
 ## Implemented
 
@@ -18,6 +18,11 @@ Last updated: 2026-05-12
 - Charts for equity curve, daily PnL, and PnL distribution.
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`.
+- Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
+- Run detail golden day-difference table showing largest daily divergences vs the pinned baseline.
+- Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
+- Visual comparison workspace with scoped run selection, core metric bars, filtered daily PnL overlays, box plots, and dot/strip plots.
+- Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.
 - Tests for CSV parsing, currency parsing, session trading-date assignment, and run/daily metrics.
@@ -27,13 +32,13 @@ Last updated: 2026-05-12
 - Drizzle ORM schema definitions exist, but there is no Drizzle migration CLI workflow yet; schema is currently initialized at runtime.
 - CSV upload imports immediately; there is no separate preview/confirm/reprocess screen.
 - Instruments must be created in settings before import; session start hour and Yahoo symbol are stored per instrument.
-- Yahoo data can be fetched and cached, but run detail pages do not yet overlay ATR/range/gap values against strategy days.
-- Regime discovery views are not built yet, so questions like “does this win on high ATR days?” are not automated in the UI.
-- Combo analysis supports weighted daily aggregation, but deeper correlation tables and “only A won / only B won / both won” breakdowns need more UI.
-- Golden comparison has summary deltas, but not a full day-by-day difference explorer.
+- Regime discovery is currently descriptive, not ML/rule-mining; it shows ATR/range buckets but does not yet propose optimized thresholds.
+- Comparison charts use custom SVG/HTML primitives; there is no zoom/brush interaction yet.
+- Combo analysis has overlap buckets and contribution days, but saved combo detail pages are not built yet.
+- Golden comparison has a day-difference table, but no filtering/drilldown controls yet.
 - The current NT export does not include side, entry/exit prices, quantity, or holding time, so those analyses are not possible until a richer export is added.
 - Python/ML is documented only; no Next.js API stub or Python service is implemented.
-- Browser/integration tests for login, bot/mode creation, import, golden pinning, combos, and market refresh are still needed.
+- Browser/integration tests for login, bot/mode/instrument creation, import, golden pinning, combos, and market refresh are still needed.
 
 ## Useful Commands
 
@@ -61,8 +66,8 @@ If `BACKUP_DIR` is absent, backups are written to `./backups`, which is also ign
 ## Recommended Next Steps
 
 1. Add an import preview/confirmation page that shows parsed row count, first/last trade, total PnL, date range, and warnings before saving.
-2. Add a day-difference explorer for candidate run vs golden run with daily PnL deltas and shared/missing trading days.
-3. Join cached market bars to daily run metrics and add ATR/range/gap-conditioned performance panels.
-4. Expand combo analytics with correlation, overlap buckets, and per-day contribution tables.
+2. Add zoom/brush and richer tooltips to comparison charts if the custom primitives become too limited.
+3. Add an automatic threshold discovery panel for ATR/range/gap conditions.
+4. Add saved combo detail pages with historical combo results.
 5. Add Drizzle migration scripts so Turso schema changes are explicit and reproducible.
-6. Add Playwright tests for the core workflow: login, create bot/mode, upload sample CSV, pin golden, compare, and build a combo.
+6. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
