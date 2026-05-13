@@ -19,6 +19,8 @@ export type RunSummary = {
   expectancy: number;
   firstTradeAt: string | null;
   lastTradeAt: string | null;
+  coverageStartDate: string | null;
+  coverageEndDate: string | null;
   createdAt: string;
   isGolden: boolean;
 };
@@ -253,6 +255,8 @@ export async function listRuns(): Promise<RunSummary[]> {
       bot_modes.name AS bot_mode_name,
       instruments.symbol AS instrument_symbol,
       instruments.yahoo_symbol AS yahoo_symbol,
+      coverage.coverage_start_date,
+      coverage.coverage_end_date,
       CASE WHEN golden_baselines.run_id = runs.id THEN 1 ELSE 0 END AS is_golden
     FROM runs
     JOIN bots ON bots.id = runs.bot_id
@@ -266,6 +270,13 @@ export async function listRuns(): Promise<RunSummary[]> {
       )
       AND golden_baselines.instrument_id = runs.instrument_id
       AND golden_baselines.timeframe = runs.timeframe
+    LEFT JOIN (
+      SELECT run_id,
+        MIN(trading_date) AS coverage_start_date,
+        MAX(trading_date) AS coverage_end_date
+      FROM daily_run_metrics
+      GROUP BY run_id
+    ) coverage ON coverage.run_id = runs.id
     ORDER BY runs.created_at DESC
   `);
 
@@ -283,6 +294,8 @@ export async function getRunDetail(id: string): Promise<RunDetail | null> {
         bot_modes.name AS bot_mode_name,
         instruments.symbol AS instrument_symbol,
         instruments.yahoo_symbol AS yahoo_symbol,
+        coverage.coverage_start_date,
+        coverage.coverage_end_date,
         CASE WHEN golden_baselines.run_id = runs.id THEN 1 ELSE 0 END AS is_golden
       FROM runs
       JOIN bots ON bots.id = runs.bot_id
@@ -296,6 +309,13 @@ export async function getRunDetail(id: string): Promise<RunDetail | null> {
         )
         AND golden_baselines.instrument_id = runs.instrument_id
         AND golden_baselines.timeframe = runs.timeframe
+      LEFT JOIN (
+        SELECT run_id,
+          MIN(trading_date) AS coverage_start_date,
+          MAX(trading_date) AS coverage_end_date
+        FROM daily_run_metrics
+        GROUP BY run_id
+      ) coverage ON coverage.run_id = runs.id
       WHERE runs.id = ?
       LIMIT 1
     `,
@@ -825,12 +845,20 @@ async function getGoldenRunForScope(
     sql: `
       SELECT runs.*, bots.name AS bot_name, bot_modes.name AS bot_mode_name,
         instruments.symbol AS instrument_symbol, instruments.yahoo_symbol AS yahoo_symbol,
+        coverage.coverage_start_date, coverage.coverage_end_date,
         1 AS is_golden
       FROM golden_baselines
       JOIN runs ON runs.id = golden_baselines.run_id
       JOIN bots ON bots.id = runs.bot_id
       LEFT JOIN bot_modes ON bot_modes.id = runs.bot_mode_id
       JOIN instruments ON instruments.id = runs.instrument_id
+      LEFT JOIN (
+        SELECT run_id,
+          MIN(trading_date) AS coverage_start_date,
+          MAX(trading_date) AS coverage_end_date
+        FROM daily_run_metrics
+        GROUP BY run_id
+      ) coverage ON coverage.run_id = runs.id
       WHERE golden_baselines.bot_id = ?
         AND (
           golden_baselines.bot_mode_id = ?
@@ -950,6 +978,8 @@ function mapRunSummary(row: Record<string, unknown>): RunSummary {
     expectancy: Number(row.expectancy),
     firstTradeAt: stringOrNull(row.first_trade_at),
     lastTradeAt: stringOrNull(row.last_trade_at),
+    coverageStartDate: stringOrNull(row.coverage_start_date),
+    coverageEndDate: stringOrNull(row.coverage_end_date),
     createdAt: String(row.created_at),
     isGolden: Number(row.is_golden) === 1,
   };

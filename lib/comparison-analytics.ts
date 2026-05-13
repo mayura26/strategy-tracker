@@ -31,6 +31,8 @@ export type AlignedDay = {
   candidateTrades: number;
 };
 
+export type AlignmentMode = "overlap" | "union";
+
 export type HistogramBin = {
   start: number;
   end: number;
@@ -48,6 +50,20 @@ export type OutcomeSummary = {
   averageRed: number | null;
   bestDay: number | null;
   worstDay: number | null;
+};
+
+export type OutperformanceSummary = {
+  totalDays: number;
+  candidateBeats: number;
+  goldenBeats: number;
+  tiedDays: number;
+  candidateThresholdBeats: number;
+  goldenThresholdBeats: number;
+  threshold: number;
+  candidateTotalDelta: number;
+  goldenTotalDelta: number;
+  biggestCandidateBeat: number | null;
+  biggestGoldenBeat: number | null;
 };
 
 export function summarizeDistribution(values: number[]): DistributionSummary {
@@ -152,17 +168,62 @@ export function summarizeOutcomes(values: number[]): OutcomeSummary {
   };
 }
 
+export function summarizeOutperformance(
+  days: AlignedDay[],
+  threshold: number,
+): OutperformanceSummary {
+  const normalizedThreshold = Math.max(threshold, 0);
+  const candidateBeatDays = days.filter((day) => day.delta > 0);
+  const goldenBeatDays = days.filter((day) => day.delta < 0);
+
+  return {
+    totalDays: days.length,
+    candidateBeats: candidateBeatDays.length,
+    goldenBeats: goldenBeatDays.length,
+    tiedDays: days.filter((day) => day.delta === 0).length,
+    candidateThresholdBeats: candidateBeatDays.filter(
+      (day) => day.delta >= normalizedThreshold,
+    ).length,
+    goldenThresholdBeats: goldenBeatDays.filter(
+      (day) => Math.abs(day.delta) >= normalizedThreshold,
+    ).length,
+    threshold: normalizedThreshold,
+    candidateTotalDelta: candidateBeatDays.reduce(
+      (sum, day) => sum + day.delta,
+      0,
+    ),
+    goldenTotalDelta: goldenBeatDays.reduce(
+      (sum, day) => sum + Math.abs(day.delta),
+      0,
+    ),
+    biggestCandidateBeat:
+      candidateBeatDays.length === 0
+        ? null
+        : Math.max(...candidateBeatDays.map((day) => day.delta)),
+    biggestGoldenBeat:
+      goldenBeatDays.length === 0
+        ? null
+        : Math.max(...goldenBeatDays.map((day) => Math.abs(day.delta))),
+  };
+}
+
 export function alignDailyPnL(
   goldenDays: DailyRunMetric[],
   candidateDays: DailyRunMetric[],
+  mode: AlignmentMode = "union",
 ): AlignedDay[] {
   const goldenMap = new Map(goldenDays.map((day) => [day.tradingDate, day]));
   const candidateMap = new Map(
     candidateDays.map((day) => [day.tradingDate, day]),
   );
-  const keys = [...new Set([...goldenMap.keys(), ...candidateMap.keys()])].sort(
-    (left, right) => left.localeCompare(right),
-  );
+  const keys =
+    mode === "overlap"
+      ? [...goldenMap.keys()]
+          .filter((key) => candidateMap.has(key))
+          .sort((left, right) => left.localeCompare(right))
+      : [...new Set([...goldenMap.keys(), ...candidateMap.keys()])].sort(
+          (left, right) => left.localeCompare(right),
+        );
 
   return keys.map((tradingDate) => {
     const golden = goldenMap.get(tradingDate);

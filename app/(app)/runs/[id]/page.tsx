@@ -75,6 +75,9 @@ export default async function RunDetailPage({
             {run.botName} / {run.botModeName ?? "No mode"} /{" "}
             {run.instrumentSymbol} / {run.timeframe}
           </p>
+          <p className="mt-2 inline-flex rounded-sm border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-xs font-semibold text-sky-200">
+            Data period {formatRunCoverage(run)}
+          </p>
         </div>
         <form action={setGoldenRunAction}>
           <input name="runId" type="hidden" value={run.id} />
@@ -430,6 +433,17 @@ function Detail({ label, value }: { label: string; value: string }) {
       <dd className="strong-text mt-1 break-words">{value}</dd>
     </div>
   );
+}
+
+function formatRunCoverage(run: {
+  coverageStartDate: string | null;
+  coverageEndDate: string | null;
+}) {
+  if (!run.coverageStartDate || !run.coverageEndDate) {
+    return "n/a";
+  }
+
+  return `${run.coverageStartDate} to ${run.coverageEndDate}`;
 }
 
 function buildGoldenDayRows(

@@ -1,16 +1,23 @@
 "use client";
 
-import { BarChart3, CircleDot, SlidersHorizontal } from "lucide-react";
+import {
+  BarChart3,
+  ChevronDown,
+  CircleDot,
+  SlidersHorizontal,
+} from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import {
+  type AlignmentMode,
   alignDailyPnL,
   buildHistogram,
   type DayBucket,
   filterAlignedDays,
   summarizeDistribution,
   summarizeOutcomes,
+  summarizeOutperformance,
 } from "@/lib/comparison-analytics";
 import type { ComparisonGroup, ComparisonRun } from "@/lib/db/repository";
 import {
@@ -39,6 +46,8 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
   const [bucket, setBucket] = useState<DayBucket>("all");
   const [hideSimilar, setHideSimilar] = useState(true);
   const [similarThreshold, setSimilarThreshold] = useState(50);
+  const [outperformanceThreshold, setOutperformanceThreshold] = useState(100);
+  const [alignmentMode, setAlignmentMode] = useState<AlignmentMode>("overlap");
   const candidate =
     group?.runs.find((run) => run.id === candidateIdByGroup[group.scope]) ??
     group?.runs.find((run) => run.id !== golden?.id) ??
@@ -46,9 +55,27 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
   const alignedDays = useMemo(
     () =>
       golden && candidate
-        ? alignDailyPnL(golden.dailyMetrics, candidate.dailyMetrics)
+        ? alignDailyPnL(
+            golden.dailyMetrics,
+            candidate.dailyMetrics,
+            alignmentMode,
+          )
+        : [],
+    [golden, candidate, alignmentMode],
+  );
+  const unionAlignedDays = useMemo(
+    () =>
+      golden && candidate
+        ? alignDailyPnL(golden.dailyMetrics, candidate.dailyMetrics, "union")
         : [],
     [golden, candidate],
+  );
+  const scopedRuns = useMemo(
+    () =>
+      golden && candidate
+        ? buildScopedDailyRuns(golden, candidate, alignedDays)
+        : [],
+    [golden, candidate, alignedDays],
   );
   const filteredDays = useMemo(
     () =>
@@ -97,6 +124,7 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
           <Link className="ghost-button" href={`/runs/${golden.id}`}>
             {golden.name}
           </Link>
+          <span className="quiet-text text-xs">{formatCoverage(golden)}</span>
         </div>
         <label className="grid gap-2">
           <span className="label-text">Candidate</span>
@@ -112,14 +140,60 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
           >
             {group.runs.map((run) => (
               <option key={run.id} value={run.id}>
-                {run.name}
+                {run.name} ({formatCoverage(run)})
               </option>
             ))}
+          </select>
+          <span className="quiet-text text-xs">
+            {formatCoverage(candidate)}
+          </span>
+        </label>
+      </section>
+
+      <section className="panel grid gap-4 lg:grid-cols-[1fr_260px]">
+        <div>
+          <h2 className="strong-text text-base font-bold">Comparison period</h2>
+          <p className="quiet-text mt-1 text-sm">
+            {alignmentMode === "overlap"
+              ? `${alignedDays.length} shared trading days are included. ${countSingleRunDays(unionAlignedDays, "golden")} golden-only and ${countSingleRunDays(unionAlignedDays, "candidate")} candidate-only days are excluded.`
+              : `${alignedDays.length} union trading days are included, with missing run days treated as zero PnL.`}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+            <span className="rounded-sm border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-amber-200">
+              Golden {formatCoverage(golden)}
+            </span>
+            <span className="rounded-sm border border-sky-400/25 bg-sky-400/10 px-2 py-1 text-sky-200">
+              Candidate {formatCoverage(candidate)}
+            </span>
+            <span className="rounded-sm border border-teal-400/25 bg-teal-400/10 px-2 py-1 text-teal-200">
+              Compared {formatAlignedRange(alignedDays)}
+            </span>
+          </div>
+        </div>
+        <label className="grid gap-2">
+          <span className="label-text">Date handling</span>
+          <select
+            className="input"
+            onChange={(event) =>
+              setAlignmentMode(event.target.value as AlignmentMode)
+            }
+            value={alignmentMode}
+          >
+            <option value="overlap">Overlap only</option>
+            <option value="union">Union, missing as zero</option>
           </select>
         </label>
       </section>
 
       <MetricBarComparison runs={group.runs} />
+
+      <OutperformanceVersus
+        candidateName={candidate.name}
+        days={alignedDays}
+        goldenName={golden.name}
+        onThresholdChange={setOutperformanceThreshold}
+        threshold={outperformanceThreshold}
+      />
 
       <section className="panel">
         <div className="section-title">
@@ -178,8 +252,8 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
-        <DayOutcomeVersus golden={golden} candidate={candidate} />
-        <DailyHistogramComparison runs={[golden, candidate]} />
+        <DayOutcomeVersus runs={scopedRuns} />
+        <DailyHistogramComparison runs={scopedRuns} />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
@@ -189,7 +263,7 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
           valueType="trade"
         />
         <DistributionPanel
-          runs={[golden, candidate]}
+          runs={scopedRuns}
           title="Daily PnL distribution"
           valueType="daily"
         />
@@ -198,14 +272,245 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
   );
 }
 
-function DayOutcomeVersus({
-  golden,
-  candidate,
-}: {
-  golden: ComparisonRun;
-  candidate: ComparisonRun;
+function buildScopedDailyRuns(
+  golden: ComparisonRun,
+  candidate: ComparisonRun,
+  days: ReturnType<typeof alignDailyPnL>,
+): ComparisonRun[] {
+  return [
+    {
+      ...golden,
+      dailyMetrics: days.map((day) =>
+        dailyMetricFromAligned(
+          day.tradingDate,
+          day.goldenPnl,
+          day.goldenTrades,
+        ),
+      ),
+    },
+    {
+      ...candidate,
+      dailyMetrics: days.map((day) =>
+        dailyMetricFromAligned(
+          day.tradingDate,
+          day.candidatePnl,
+          day.candidateTrades,
+        ),
+      ),
+    },
+  ];
+}
+
+function dailyMetricFromAligned(
+  tradingDate: string,
+  netProfit: number,
+  tradeCount: number,
+) {
+  return {
+    tradingDate,
+    tradeCount,
+    netProfit,
+    cumulativeNetProfit: netProfit,
+    winCount: netProfit > 0 ? 1 : 0,
+    lossCount: netProfit < 0 ? 1 : 0,
+    maxDrawdown: Math.min(netProfit, 0),
+    bestTrade: netProfit,
+    worstTrade: netProfit,
+    avgMae: null,
+    avgMfe: null,
+  };
+}
+
+function formatCoverage(run: {
+  coverageStartDate: string | null;
+  coverageEndDate: string | null;
 }) {
-  const rows = [golden, candidate].map((run) => ({
+  if (!run.coverageStartDate || !run.coverageEndDate) {
+    return "n/a";
+  }
+
+  return `${run.coverageStartDate} to ${run.coverageEndDate}`;
+}
+
+function formatAlignedRange(days: ReturnType<typeof alignDailyPnL>) {
+  if (days.length === 0) {
+    return "n/a";
+  }
+
+  return `${days[0].tradingDate} to ${days.at(-1)?.tradingDate}`;
+}
+
+function countSingleRunDays(
+  days: ReturnType<typeof alignDailyPnL>,
+  side: "golden" | "candidate",
+) {
+  return days.filter((day) =>
+    side === "golden"
+      ? day.goldenTrades > 0 && day.candidateTrades === 0
+      : day.candidateTrades > 0 && day.goldenTrades === 0,
+  ).length;
+}
+
+function OutperformanceVersus({
+  days,
+  goldenName,
+  candidateName,
+  threshold,
+  onThresholdChange,
+}: {
+  days: ReturnType<typeof alignDailyPnL>;
+  goldenName: string;
+  candidateName: string;
+  threshold: number;
+  onThresholdChange: (threshold: number) => void;
+}) {
+  const summary = summarizeOutperformance(days, threshold);
+  const thresholdDays = days
+    .filter((day) => Math.abs(day.delta) >= summary.threshold)
+    .sort((left, right) => right.tradingDate.localeCompare(left.tradingDate))
+    .slice(0, 16);
+
+  return (
+    <section className="panel">
+      <div className="section-title">
+        <div>
+          <h2>Outperformance vs</h2>
+          <p>
+            Counts days where one run beat the other, plus material-delta days.
+          </p>
+        </div>
+        <label className="grid min-w-44 gap-2">
+          <span className="label-text">Material delta</span>
+          <input
+            className="input"
+            min="0"
+            onChange={(event) =>
+              onThresholdChange(Number(event.target.value) || 0)
+            }
+            step="25"
+            type="number"
+            value={threshold}
+          />
+        </label>
+      </div>
+      <div className="metric-grid">
+        <VersusMetric
+          label={`${candidateName} beat days`}
+          tone="candidate"
+          value={`${summary.candidateBeats} / ${summary.totalDays}`}
+        />
+        <VersusMetric
+          label={`${goldenName} beat days`}
+          tone="golden"
+          value={`${summary.goldenBeats} / ${summary.totalDays}`}
+        />
+        <Metric label="Tied days" value={String(summary.tiedDays)} />
+        <VersusMetric
+          label={`${candidateName} >= ${formatCurrency(summary.threshold)}`}
+          tone="candidate"
+          value={String(summary.candidateThresholdBeats)}
+        />
+        <VersusMetric
+          label={`${goldenName} >= ${formatCurrency(summary.threshold)}`}
+          tone="golden"
+          value={String(summary.goldenThresholdBeats)}
+        />
+        <Metric
+          label="Biggest spread"
+          value={formatCurrency(
+            Math.max(
+              summary.biggestCandidateBeat ?? 0,
+              summary.biggestGoldenBeat ?? 0,
+            ),
+          )}
+        />
+      </div>
+      <div className="mt-5 overflow-x-auto">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Winner</th>
+              <th>Golden</th>
+              <th>Candidate</th>
+              <th>Delta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {thresholdDays.map((day) => {
+              const candidateWon = day.delta > 0;
+
+              return (
+                <tr
+                  className={candidateWon ? "bg-sky-400/5" : "bg-amber-400/5"}
+                  key={day.tradingDate}
+                >
+                  <td>{day.tradingDate}</td>
+                  <td>
+                    <span
+                      className={
+                        candidateWon
+                          ? "rounded-sm bg-sky-400/15 px-2 py-1 font-semibold text-sky-200"
+                          : "rounded-sm bg-amber-400/15 px-2 py-1 font-semibold text-amber-200"
+                      }
+                    >
+                      {candidateWon ? candidateName : goldenName}
+                    </span>
+                  </td>
+                  <td className={toneClass(day.goldenPnl)}>
+                    {formatCurrency(day.goldenPnl)}
+                  </td>
+                  <td className={toneClass(day.candidatePnl)}>
+                    {formatCurrency(day.candidatePnl)}
+                  </td>
+                  <td
+                    className={
+                      candidateWon
+                        ? "font-semibold text-sky-300"
+                        : "font-semibold text-amber-300"
+                    }
+                  >
+                    {formatCurrency(day.delta)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function VersusMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "candidate" | "golden";
+}) {
+  return (
+    <div
+      className={
+        tone === "candidate"
+          ? "mini-metric border-sky-400/25 bg-sky-400/10"
+          : "mini-metric border-amber-400/25 bg-amber-400/10"
+      }
+    >
+      <span>{label}</span>
+      <strong
+        className={tone === "candidate" ? "text-sky-200" : "text-amber-200"}
+      >
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+function DayOutcomeVersus({ runs }: { runs: ComparisonRun[] }) {
+  const rows = runs.map((run) => ({
     run,
     summary: summarizeOutcomes(run.dailyMetrics.map((day) => day.netProfit)),
   }));
@@ -423,6 +728,25 @@ function formatCompactCurrency(value: number) {
   return `${sign}$${formatNumber(abs, 0)}`;
 }
 
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: number;
+}) {
+  return (
+    <div className="mini-metric">
+      <span>{label}</span>
+      <strong className={tone === undefined ? "" : toneClass(tone)}>
+        {value}
+      </strong>
+    </div>
+  );
+}
+
 function MetricBarComparison({ runs }: { runs: ComparisonRun[] }) {
   const metrics = [
     {
@@ -557,7 +881,12 @@ function DailyOverlayChart({
           {candidateName}
         </span>
       </div>
-      <div className="flex h-72 items-center gap-1 overflow-x-auto border-y border-slate-800 py-4">
+      <div
+        className="grid h-72 items-center gap-1 overflow-hidden border-y border-slate-800 py-4"
+        style={{
+          gridTemplateColumns: `repeat(${Math.max(days.length, 1)}, minmax(0, 1fr))`,
+        }}
+      >
         {days.map((day) => {
           const goldenHeight = Math.max(
             (Math.abs(day.goldenPnl) / maxAbs) * 120,
@@ -570,7 +899,7 @@ function DailyOverlayChart({
 
           return (
             <div
-              className="grid min-w-6 grid-cols-2 items-center gap-px"
+              className="grid min-w-0 grid-cols-2 items-center gap-px"
               key={day.tradingDate}
               title={`${day.tradingDate}: golden ${formatCurrency(day.goldenPnl)}, candidate ${formatCurrency(day.candidatePnl)}, delta ${formatCurrency(day.delta)}`}
             >
@@ -726,38 +1055,57 @@ function DailyDifferenceTable({
 }: {
   days: ReturnType<typeof filterAlignedDays>;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <div className="mt-6 overflow-x-auto">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Day</th>
-            <th>Golden</th>
-            <th>Candidate</th>
-            <th>Delta</th>
-            <th>Golden trades</th>
-            <th>Candidate trades</th>
-          </tr>
-        </thead>
-        <tbody>
-          {days.map((day) => (
-            <tr key={day.tradingDate}>
-              <td>{day.tradingDate}</td>
-              <td className={toneClass(day.goldenPnl)}>
-                {formatCurrency(day.goldenPnl)}
-              </td>
-              <td className={toneClass(day.candidatePnl)}>
-                {formatCurrency(day.candidatePnl)}
-              </td>
-              <td className={toneClass(day.delta)}>
-                {formatCurrency(day.delta)}
-              </td>
-              <td>{day.goldenTrades}</td>
-              <td>{day.candidateTrades}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="mt-6 border-t border-slate-800 pt-4">
+      <button
+        aria-expanded={isOpen}
+        className="ghost-button w-full justify-between"
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        <span>Daily difference table ({days.length})</span>
+        <ChevronDown
+          aria-hidden
+          className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
+          size={16}
+        />
+      </button>
+      {isOpen ? (
+        <div className="mt-4 overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Golden</th>
+                <th>Candidate</th>
+                <th>Delta</th>
+                <th>Golden trades</th>
+                <th>Candidate trades</th>
+              </tr>
+            </thead>
+            <tbody>
+              {days.map((day) => (
+                <tr key={day.tradingDate}>
+                  <td>{day.tradingDate}</td>
+                  <td className={toneClass(day.goldenPnl)}>
+                    {formatCurrency(day.goldenPnl)}
+                  </td>
+                  <td className={toneClass(day.candidatePnl)}>
+                    {formatCurrency(day.candidatePnl)}
+                  </td>
+                  <td className={toneClass(day.delta)}>
+                    {formatCurrency(day.delta)}
+                  </td>
+                  <td>{day.goldenTrades}</td>
+                  <td>{day.candidateTrades}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   filterAlignedDays,
   summarizeDistribution,
   summarizeOutcomes,
+  summarizeOutperformance,
 } from "@/lib/comparison-analytics";
 import { assertApprox, assertEqual } from "@/tests/assert";
 
@@ -49,11 +50,27 @@ const candidateDays = [
   day("2026-01-05", 300, 2),
 ];
 const aligned = alignDailyPnL(goldenDays, candidateDays);
+const overlapAligned = alignDailyPnL(goldenDays, candidateDays, "overlap");
 
 assertEqual(aligned.length, 5, "aligned date union");
 assertEqual(aligned[0].delta, 25, "aligned delta");
 assertEqual(aligned.at(-1)?.goldenPnl, 0, "missing golden day");
 assertEqual(aligned.at(-1)?.candidatePnl, 300, "candidate-only day");
+assertEqual(overlapAligned.length, 3, "aligned overlap date intersection");
+assertEqual(
+  overlapAligned.at(-1)?.tradingDate,
+  "2026-01-03",
+  "overlap excludes single-run dates",
+);
+
+const outperformance = summarizeOutperformance(aligned, 100);
+
+assertEqual(outperformance.candidateBeats, 3, "candidate outperforms days");
+assertEqual(outperformance.goldenBeats, 2, "golden outperforms days");
+assertEqual(outperformance.candidateThresholdBeats, 2, "candidate excess days");
+assertEqual(outperformance.goldenThresholdBeats, 1, "golden excess days");
+assertEqual(outperformance.biggestCandidateBeat, 300, "candidate biggest beat");
+assertEqual(outperformance.biggestGoldenBeat, 200, "golden biggest beat");
 
 assertEqual(
   filterAlignedDays(aligned, {
