@@ -43,10 +43,6 @@ export function ImportRunForm({
     : (modes[0]?.id ?? "");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    if (preview) {
-      return;
-    }
-
     event.preventDefault();
     setPreviewError("");
 
@@ -92,7 +88,7 @@ export function ImportRunForm({
     <form
       action={uploadRunCsv}
       className="panel grid gap-6"
-      onSubmit={handleSubmit}
+      onSubmit={preview ? undefined : handleSubmit}
     >
       {preview ? (
         <>
@@ -235,7 +231,7 @@ export function ImportRunForm({
           className="input file:mr-4 file:rounded-md file:border-0 file:bg-amber-400 file:px-3 file:py-2 file:text-slate-950"
           name="csvFile"
           onChange={clearPreview}
-          required
+          required={!preview}
           type="file"
         />
       </label>
