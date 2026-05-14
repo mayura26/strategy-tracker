@@ -117,6 +117,14 @@ export type ModeSwitchEvaluation = {
   summary: ModeSwitchSummary;
 };
 
+export type ModeSwitchCandidate = {
+  rule: ModeSwitchRule;
+  evaluation: ModeSwitchEvaluation;
+  improvementVsBestAlways: number;
+  improvementVsModeA: number;
+  improvementVsModeB: number;
+};
+
 export function summarizeDistribution(values: number[]): DistributionSummary {
   const sorted = values
     .filter((value) => Number.isFinite(value))
@@ -312,6 +320,79 @@ export function evaluateModeSwitchRule({
   };
 }
 
+export function discoverModeSwitchRules({
+  modeADays,
+  modeBDays,
+  marketBars,
+  settings,
+  thresholds = defaultSwitchThresholds(),
+  minDays = 5,
+  limit = 6,
+}: {
+  modeADays: DailyRunMetric[];
+  modeBDays: DailyRunMetric[];
+  marketBars: MarketBar[];
+  settings: AnalysisSettings;
+  thresholds?: number[];
+  minDays?: number;
+  limit?: number;
+}): ModeSwitchCandidate[] {
+  const candidates: ModeSwitchCandidate[] = [];
+  const operators: ModeSwitchOperator[] = ["gt", "gte", "lt", "lte"];
+
+  for (const threshold of thresholds) {
+    for (const operator of operators) {
+      const rule = { operator, threshold };
+      const evaluation = evaluateModeSwitchRule({
+        marketBars,
+        modeADays,
+        modeBDays,
+        rule,
+        settings,
+      });
+
+      if (
+        evaluation.summary.totalDays < minDays ||
+        evaluation.summary.modeADays === 0 ||
+        evaluation.summary.modeBDays === 0
+      ) {
+        continue;
+      }
+
+      const improvementVsModeA =
+        evaluation.summary.totalPnl - evaluation.summary.alwaysA.totalPnl;
+      const improvementVsModeB =
+        evaluation.summary.totalPnl - evaluation.summary.alwaysB.totalPnl;
+
+      candidates.push({
+        evaluation,
+        improvementVsBestAlways: Math.min(
+          improvementVsModeA,
+          improvementVsModeB,
+        ),
+        improvementVsModeA,
+        improvementVsModeB,
+        rule,
+      });
+    }
+  }
+
+  return candidates
+    .sort((left, right) => {
+      const scoreDelta =
+        right.improvementVsBestAlways - left.improvementVsBestAlways;
+
+      if (scoreDelta !== 0) {
+        return scoreDelta;
+      }
+
+      return (
+        right.evaluation.summary.totalPnl - left.evaluation.summary.totalPnl
+      );
+    })
+    .slice(0, limit);
+}
+
 export function evaluateSwitchCondition(value: number, rule: ModeSwitchRule) {
   if (rule.operator === "gt") {
     return value > rule.threshold;
@@ -424,6 +505,10 @@ function calculateDrawdown(values: number[]) {
   }
 
   return maxDrawdown;
+}
+
+function defaultSwitchThresholds() {
+  return Array.from({ length: 17 }, (_, index) => 10 + index * 5);
 }
 
 export function filterAlignedDays(

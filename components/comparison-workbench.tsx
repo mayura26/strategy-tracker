@@ -16,8 +16,10 @@ import {
   alignDailyPnL,
   buildHistogram,
   type DayBucket,
+  discoverModeSwitchRules,
   evaluateModeSwitchRule,
   filterAlignedDays,
+  type ModeSwitchCandidate,
   type ModeSwitchDay,
   type ModeSwitchMetrics,
   type ModeSwitchOperator,
@@ -478,6 +480,16 @@ function ModeSwitchLab({
       }),
     [modeA, modeB, marketBars, analysisSettings, operator, threshold],
   );
+  const candidates = useMemo(
+    () =>
+      discoverModeSwitchRules({
+        marketBars,
+        modeADays: modeA.dailyMetrics,
+        modeBDays: modeB.dailyMetrics,
+        settings: analysisSettings,
+      }),
+    [modeA, modeB, marketBars, analysisSettings],
+  );
   const ruleText = `Previous RSI${analysisSettings.rsiPeriod} ${operatorLabel(
     operator,
   )} ${threshold}`;
@@ -576,6 +588,14 @@ function ModeSwitchLab({
             />
           </div>
 
+          <SwitchCandidateStrip
+            candidates={candidates}
+            onApply={(candidate) => {
+              setOperator(candidate.rule.operator);
+              setThreshold(candidate.rule.threshold);
+            }}
+          />
+
           <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
             <SwitchOutcomeCard
               modeAName={modeA.name}
@@ -634,6 +654,67 @@ function SwitchOutcomeCard({
           {summary.missedWinModeB}
         </span>
       </div>
+    </div>
+  );
+}
+
+function SwitchCandidateStrip({
+  candidates,
+  onApply,
+}: {
+  candidates: ModeSwitchCandidate[];
+  onApply: (candidate: ModeSwitchCandidate) => void;
+}) {
+  return (
+    <div className="subtle-card p-4">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div className="chart-heading">
+          <span>RSI rule scan</span>
+        </div>
+        <p className="quiet-text text-xs">
+          Ranked by improvement over the better always-run mode.
+        </p>
+      </div>
+      {candidates.length === 0 ? (
+        <p className="quiet-text text-sm">
+          No switch rule had enough routed days on both modes yet.
+        </p>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-3">
+          {candidates.slice(0, 6).map((candidate) => (
+            <button
+              className="rounded-sm border border-slate-800 bg-slate-950/45 p-3 text-left transition hover:border-sky-400/40 hover:bg-sky-400/10"
+              key={`${candidate.rule.operator}-${candidate.rule.threshold}`}
+              onClick={() => onApply(candidate)}
+              type="button"
+            >
+              <span className="strong-text block font-semibold">
+                RSI {operatorLabel(candidate.rule.operator)}{" "}
+                {candidate.rule.threshold}
+              </span>
+              <span className={toneClass(candidate.improvementVsBestAlways)}>
+                {formatCurrency(candidate.improvementVsBestAlways)} vs best
+                always
+              </span>
+              <span className="quiet-text mt-2 grid grid-cols-2 gap-2 text-xs">
+                <span>
+                  {formatCurrency(candidate.evaluation.summary.totalPnl)}
+                </span>
+                <span>
+                  A/B {candidate.evaluation.summary.modeADays}/
+                  {candidate.evaluation.summary.modeBDays}
+                </span>
+                <span>
+                  Win {formatPercent(candidate.evaluation.summary.winDayRate)}
+                </span>
+                <span>
+                  DD {formatCurrency(candidate.evaluation.summary.maxDrawdown)}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

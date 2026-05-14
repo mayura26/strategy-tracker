@@ -2,6 +2,7 @@ import {
   alignDailyPnL,
   buildHistogram,
   countSingleRunDays,
+  discoverModeSwitchRules,
   evaluateModeSwitchRule,
   evaluateSwitchCondition,
   filterAlignedDays,
@@ -217,6 +218,53 @@ assertEqual(
 );
 assertEqual(switchEvaluation.summary.alwaysA.totalPnl, 100, "always A PnL");
 assertEqual(switchEvaluation.summary.alwaysB.totalPnl, 150, "always B PnL");
+
+const discoveredSwitches = discoverModeSwitchRules({
+  marketBars: [
+    bar("2026-03-01", 10),
+    bar("2026-03-02", 11),
+    bar("2026-03-03", 12),
+    bar("2026-03-04", 13),
+    bar("2026-03-05", 12),
+    bar("2026-03-06", 11),
+    bar("2026-03-07", 10),
+    bar("2026-03-08", 11),
+  ],
+  minDays: 3,
+  modeADays: [
+    day("2026-03-04", 300, 1),
+    day("2026-03-05", 250, 1),
+    day("2026-03-06", -200, 1),
+    day("2026-03-07", -150, 1),
+    day("2026-03-08", 200, 1),
+  ],
+  modeBDays: [
+    day("2026-03-04", -100, 1),
+    day("2026-03-05", -50, 1),
+    day("2026-03-06", 200, 1),
+    day("2026-03-07", 150, 1),
+    day("2026-03-08", -80, 1),
+  ],
+  settings: switchSettings,
+  thresholds: [50, 70],
+});
+
+assertEqual(discoveredSwitches.length > 0, true, "switch candidates found");
+assertEqual(
+  discoveredSwitches[0].improvementVsBestAlways > 0,
+  true,
+  "top switch candidate improves on best always-run mode",
+);
+assertEqual(
+  discoveredSwitches[0].evaluation.summary.modeADays > 0,
+  true,
+  "top switch candidate uses mode A",
+);
+assertEqual(
+  discoveredSwitches[0].evaluation.summary.modeBDays > 0,
+  true,
+  "top switch candidate uses mode B",
+);
 
 console.log("Comparison analytics tests passed.");
 
