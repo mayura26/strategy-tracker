@@ -433,6 +433,64 @@ export async function setGoldenRun(runId: string) {
   });
 }
 
+export async function updateRunMetadata(input: {
+  id: string;
+  name: string;
+  timeframe: string;
+  settingsJson: string;
+  tags: string;
+  notes: string;
+}) {
+  await ensureSchema();
+
+  const id = input.id.trim();
+  const name = input.name.trim();
+  const timeframe = input.timeframe.trim();
+
+  if (!id || !name || !timeframe) {
+    throw new Error("Run, name, and timeframe are required.");
+  }
+
+  JSON.parse(input.settingsJson);
+
+  const runResult = await client.execute({
+    sql: `SELECT id
+      FROM runs
+      WHERE id = ?
+      LIMIT 1`,
+    args: [id],
+  });
+
+  if (!runResult.rows[0]) {
+    throw new Error("Run not found.");
+  }
+
+  const now = new Date().toISOString();
+
+  await client.execute({
+    sql: `UPDATE runs
+      SET name = ?, timeframe = ?, settings_json = ?, tags = ?, notes = ?,
+        updated_at = ?
+      WHERE id = ?`,
+    args: [
+      name,
+      timeframe,
+      input.settingsJson,
+      input.tags.trim(),
+      input.notes.trim(),
+      now,
+      id,
+    ],
+  });
+
+  await client.execute({
+    sql: `UPDATE golden_baselines
+      SET timeframe = ?, updated_at = ?
+      WHERE run_id = ?`,
+    args: [timeframe, now, id],
+  });
+}
+
 export async function createBot(input: { name: string }) {
   await ensureSchema();
 

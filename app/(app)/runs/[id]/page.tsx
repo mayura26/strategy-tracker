@@ -1,7 +1,11 @@
-import { Crown } from "lucide-react";
+import { BrainCircuit, Crown, Save } from "lucide-react";
 import { notFound } from "next/navigation";
 
-import { setGoldenRunAction } from "@/app/actions";
+import {
+  createRegimeAnalysisJobAction,
+  setGoldenRunAction,
+  updateRunMetadataAction,
+} from "@/app/actions";
 import {
   DailyBars,
   DailyPnlDistribution,
@@ -92,16 +96,25 @@ export default async function RunDetailPage({
             Data period {formatRunCoverage(run)}
           </p>
         </div>
-        <form action={setGoldenRunAction}>
-          <input name="runId" type="hidden" value={run.id} />
-          <button
-            className={run.isGolden ? "ghost-button" : "primary-button"}
-            type="submit"
-          >
-            <Crown aria-hidden size={16} />
-            {run.isGolden ? "Golden baseline" : "Pin golden"}
-          </button>
-        </form>
+        <div className="flex flex-wrap gap-2">
+          <form action={createRegimeAnalysisJobAction}>
+            <input name="runId" type="hidden" value={run.id} />
+            <button className="ghost-button" type="submit">
+              <BrainCircuit aria-hidden size={16} />
+              Analyze
+            </button>
+          </form>
+          <form action={setGoldenRunAction}>
+            <input name="runId" type="hidden" value={run.id} />
+            <button
+              className={run.isGolden ? "ghost-button" : "primary-button"}
+              type="submit"
+            >
+              <Crown aria-hidden size={16} />
+              {run.isGolden ? "Golden baseline" : "Pin golden"}
+            </button>
+          </form>
+        </div>
       </section>
 
       <section className="metric-grid">
@@ -384,9 +397,53 @@ export default async function RunDetailPage({
               label="Imported"
               value={formatDate(run.importInfo?.createdAt)}
             />
-            <Detail label="Settings" value={run.settingsJson} />
-            <Detail label="Notes" value={run.notes || "n/a"} />
           </dl>
+          <form action={updateRunMetadataAction} className="mt-5 grid gap-3">
+            <input name="runId" type="hidden" value={run.id} />
+            <label className="grid gap-2">
+              <span className="label-text">Run name</span>
+              <input
+                className="input"
+                defaultValue={run.name}
+                name="name"
+                required
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="label-text">Timeframe</span>
+              <input
+                className="input"
+                defaultValue={run.timeframe}
+                name="timeframe"
+                required
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="label-text">Tags</span>
+              <input className="input" defaultValue={run.tags} name="tags" />
+            </label>
+            <label className="grid gap-2">
+              <span className="label-text">Settings JSON</span>
+              <textarea
+                className="input min-h-32 font-mono text-xs"
+                defaultValue={run.settingsJson}
+                name="settingsJson"
+                required
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="label-text">Notes</span>
+              <textarea
+                className="input min-h-28"
+                defaultValue={run.notes}
+                name="notes"
+              />
+            </label>
+            <button className="primary-button" type="submit">
+              <Save aria-hidden size={16} />
+              Save run metadata
+            </button>
+          </form>
         </aside>
       </section>
     </div>

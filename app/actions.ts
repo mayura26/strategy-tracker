@@ -21,6 +21,7 @@ import {
   updateBot,
   updateBotMode,
   updateInstrument,
+  updateRunMetadata,
   updateSavedCombo,
   upsertMarketBar,
 } from "@/lib/db/repository";
@@ -237,6 +238,30 @@ export async function setGoldenRunAction(formData: FormData) {
   await setGoldenRun(runId);
   revalidatePath("/runs");
   revalidatePath(`/runs/${runId}`);
+}
+
+export async function updateRunMetadataAction(formData: FormData) {
+  await requireUser();
+
+  const runId = String(formData.get("runId") ?? "").trim();
+  const settingsJson = String(formData.get("settingsJson") ?? "{}").trim();
+
+  JSON.parse(settingsJson);
+
+  await updateRunMetadata({
+    id: runId,
+    name: String(formData.get("name") ?? ""),
+    timeframe: String(formData.get("timeframe") ?? ""),
+    settingsJson,
+    tags: String(formData.get("tags") ?? ""),
+    notes: String(formData.get("notes") ?? ""),
+  });
+
+  revalidatePath("/runs");
+  revalidatePath(`/runs/${runId}`);
+  revalidatePath("/compare");
+  revalidatePath("/combos");
+  revalidatePath("/analysis");
 }
 
 export async function saveComboAction(formData: FormData) {
