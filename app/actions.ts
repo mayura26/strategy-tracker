@@ -339,13 +339,14 @@ export async function refreshMarketDataAction(formData: FormData) {
 
   const instrumentId = String(formData.get("instrumentId") ?? "");
   const yahooSymbol = String(formData.get("yahooSymbol") ?? "").trim();
+  const lookbackDays = parseMarketLookbackDays(formData);
 
   if (!instrumentId || !yahooSymbol) {
     throw new Error("Instrument and Yahoo symbol are required.");
   }
 
   const from = new Date();
-  from.setDate(from.getDate() - 420);
+  from.setDate(from.getDate() - lookbackDays);
   const to = new Date();
   to.setDate(to.getDate() + 1);
 
@@ -384,10 +385,11 @@ export async function refreshMarketDataAction(formData: FormData) {
   revalidatePath("/market-data");
 }
 
-export async function refreshAllMarketDataAction() {
+export async function refreshAllMarketDataAction(formData?: FormData) {
   await requireUser();
 
   const instruments = await listInstruments();
+  const lookbackDays = parseMarketLookbackDays(formData ?? new FormData());
 
   for (const instrument of instruments) {
     if (!instrument.yahooSymbol) {
@@ -397,6 +399,7 @@ export async function refreshAllMarketDataAction() {
     const formData = new FormData();
     formData.set("instrumentId", instrument.id);
     formData.set("yahooSymbol", instrument.yahooSymbol);
+    formData.set("lookbackDays", String(lookbackDays));
     await refreshMarketDataAction(formData);
   }
 }
@@ -423,6 +426,16 @@ function revalidateSharedCatalogPaths() {
   revalidatePath("/compare");
   revalidatePath("/combos");
   revalidatePath("/analysis");
+}
+
+function parseMarketLookbackDays(formData: FormData) {
+  return z.coerce
+    .number()
+    .int()
+    .min(30)
+    .max(2500)
+    .default(420)
+    .parse(formData.get("lookbackDays") || 420);
 }
 
 async function requireUser() {

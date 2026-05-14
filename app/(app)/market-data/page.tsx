@@ -9,6 +9,9 @@ import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 
 export default async function MarketDataPage() {
   const rows = await listMarketRows();
+  const cachedRows = rows.filter((row) => row.barCount > 0);
+  const yahooRows = rows.filter((row) => row.yahooSymbol);
+  const staleRows = yahooRows.filter((row) => isStale(row.fetchedAt));
 
   return (
     <div className="grid gap-6">
@@ -17,12 +20,35 @@ export default async function MarketDataPage() {
           <h1>Market data</h1>
           <p>Yahoo futures bars cached into Turso for regime analysis.</p>
         </div>
-        <form action={refreshAllMarketDataAction}>
+        <form
+          action={refreshAllMarketDataAction}
+          className="flex flex-wrap items-end gap-2"
+        >
+          <label className="grid gap-1">
+            <span className="quiet-text text-xs font-semibold uppercase">
+              Lookback days
+            </span>
+            <input
+              className="input min-h-11 w-32"
+              defaultValue="420"
+              max="2500"
+              min="30"
+              name="lookbackDays"
+              type="number"
+            />
+          </label>
           <button className="primary-button" type="submit">
             <RefreshCcw aria-hidden size={16} />
             Refresh all
           </button>
         </form>
+      </section>
+
+      <section className="metric-grid">
+        <Metric label="Instruments" value={String(rows.length)} />
+        <Metric label="With Yahoo symbol" value={String(yahooRows.length)} />
+        <Metric label="Cached" value={String(cachedRows.length)} />
+        <Metric label="Stale caches" value={String(staleRows.length)} />
       </section>
 
       <section className="panel overflow-x-auto">
@@ -43,6 +69,8 @@ export default async function MarketDataPage() {
               <tr>
                 <th>Instrument</th>
                 <th>Yahoo</th>
+                <th>Cached range</th>
+                <th>Bars</th>
                 <th>Latest day</th>
                 <th>Close</th>
                 <th>ATR 14</th>
@@ -56,14 +84,28 @@ export default async function MarketDataPage() {
                 <tr key={row.instrumentId}>
                   <td className="strong-text font-semibold">{row.symbol}</td>
                   <td>{row.yahooSymbol ?? "n/a"}</td>
+                  <td>{formatRange(row.firstTradingDate, row.tradingDate)}</td>
+                  <td>{row.barCount}</td>
                   <td>{row.tradingDate ?? "n/a"}</td>
                   <td>{formatCurrency(row.close)}</td>
                   <td>{formatNumber(row.atr14)}</td>
-                  <td>{row.sourceStatus ?? "not cached"}</td>
+                  <td>
+                    <span className={statusClass(row.sourceStatus)}>
+                      {row.sourceStatus ?? "not cached"}
+                    </span>
+                    {row.sourceMessage ? (
+                      <p className="quiet-text mt-1 max-w-72 text-xs">
+                        {row.sourceMessage}
+                      </p>
+                    ) : null}
+                  </td>
                   <td>{formatDate(row.fetchedAt)}</td>
                   <td>
                     {row.yahooSymbol ? (
-                      <form action={refreshMarketDataAction}>
+                      <form
+                        action={refreshMarketDataAction}
+                        className="flex flex-wrap justify-end gap-2"
+                      >
                         <input
                           name="instrumentId"
                           type="hidden"
@@ -73,6 +115,15 @@ export default async function MarketDataPage() {
                           name="yahooSymbol"
                           type="hidden"
                           value={row.yahooSymbol}
+                        />
+                        <input
+                          className="input min-h-10 w-24"
+                          defaultValue="420"
+                          max="2500"
+                          min="30"
+                          name="lookbackDays"
+                          title="Lookback days"
+                          type="number"
                         />
                         <button className="ghost-button" type="submit">
                           <RefreshCcw aria-hidden size={15} />
@@ -89,4 +140,42 @@ export default async function MarketDataPage() {
       </section>
     </div>
   );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mini-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function formatRange(start: string | null, end: string | null) {
+  if (!start || !end) {
+    return "n/a";
+  }
+
+  return `${start} to ${end}`;
+}
+
+function statusClass(status: string | null) {
+  if (status === "ok") {
+    return "text-emerald-300";
+  }
+
+  if (status === "error") {
+    return "text-rose-300";
+  }
+
+  return "text-slate-400";
+}
+
+function isStale(fetchedAt: string | null) {
+  if (!fetchedAt) {
+    return true;
+  }
+
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  return Date.now() - new Date(fetchedAt).getTime() > oneDayMs;
 }

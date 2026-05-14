@@ -18,7 +18,7 @@ Last updated: 2026-05-13
 - Run library with search, scope filters, sorting, quick analysis actions, run detail page with editable metadata, data-period coverage markers, golden baseline pinning, compare page, combo workbench, and market-data page.
 - Day-centric charts for equity curve, daily PnL, and daily/session PnL distribution.
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
-- Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`.
+- Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`, with configurable lookback refreshes and visible cache coverage on `/market-data`.
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
 - Run detail underlying instrument chart with cached OHLC candlesticks and daily PnL bars.
 - Run detail predictive regime discovery with adjustable ATR/RSI thresholds, configurable EMA/RSI periods, previous-day ATR/RSI/EMA features, and chronological validation.

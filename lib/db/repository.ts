@@ -102,10 +102,13 @@ export type MarketRow = {
   instrumentId: string;
   symbol: string;
   yahooSymbol: string | null;
+  firstTradingDate: string | null;
   tradingDate: string | null;
+  barCount: number;
   close: number | null;
   atr14: number | null;
   sourceStatus: string | null;
+  sourceMessage: string | null;
   fetchedAt: string | null;
 };
 
@@ -1068,10 +1071,13 @@ export async function listMarketRows(): Promise<MarketRow[]> {
       instruments.id AS instrument_id,
       instruments.symbol,
       instruments.yahoo_symbol,
+      coverage.first_trading_date,
+      coverage.bar_count,
       latest.trading_date,
       latest.close,
       latest.atr14,
       latest.source_status,
+      latest.source_message,
       latest.fetched_at
     FROM instruments
     LEFT JOIN market_bars latest
@@ -1081,6 +1087,13 @@ export async function listMarketRows(): Promise<MarketRow[]> {
         FROM market_bars
         WHERE market_bars.instrument_id = instruments.id
       )
+    LEFT JOIN (
+      SELECT instrument_id,
+        MIN(trading_date) AS first_trading_date,
+        COUNT(*) AS bar_count
+      FROM market_bars
+      GROUP BY instrument_id
+    ) coverage ON coverage.instrument_id = instruments.id
     ORDER BY instruments.symbol ASC
   `);
 
@@ -1088,10 +1101,13 @@ export async function listMarketRows(): Promise<MarketRow[]> {
     instrumentId: String(row.instrument_id),
     symbol: String(row.symbol),
     yahooSymbol: stringOrNull(row.yahoo_symbol),
+    firstTradingDate: stringOrNull(row.first_trading_date),
     tradingDate: stringOrNull(row.trading_date),
+    barCount: Number(row.bar_count ?? 0),
     close: numberOrNull(row.close),
     atr14: numberOrNull(row.atr14),
     sourceStatus: stringOrNull(row.source_status),
+    sourceMessage: stringOrNull(row.source_message),
     fetchedAt: stringOrNull(row.fetched_at),
   }));
 }
