@@ -123,6 +123,14 @@ export type MarketBar = {
   sourceStatus: string;
 };
 
+export type AnalysisSettings = {
+  emaFastPeriod: number;
+  emaMidPeriod: number;
+  emaSlowPeriod: number;
+  rsiPeriod: number;
+  updatedAt: string | null;
+};
+
 type InsertImportedRunInput = {
   fileName: string;
   fileHash: string;
@@ -140,6 +148,14 @@ type InsertImportedRunInput = {
   metrics: RunMetrics;
   dailyMetrics: DailyRunMetric[];
   trades: NormalizedTradeSummary[];
+};
+
+export const defaultAnalysisSettings: AnalysisSettings = {
+  emaFastPeriod: 9,
+  emaMidPeriod: 13,
+  emaSlowPeriod: 21,
+  rsiPeriod: 14,
+  updatedAt: null,
 };
 
 export async function insertImportedRun(input: InsertImportedRunInput) {
@@ -750,6 +766,64 @@ export async function getInstrument(
   };
 }
 
+export async function getAnalysisSettings(): Promise<AnalysisSettings> {
+  await ensureSchema();
+
+  const result = await client.execute({
+    sql: `SELECT ema_fast_period, ema_mid_period, ema_slow_period,
+        rsi_period, updated_at
+      FROM analysis_settings
+      WHERE id = 'global'
+      LIMIT 1`,
+    args: [],
+  });
+  const row = result.rows[0];
+
+  if (!row) {
+    return defaultAnalysisSettings;
+  }
+
+  return {
+    emaFastPeriod: Number(row.ema_fast_period),
+    emaMidPeriod: Number(row.ema_mid_period),
+    emaSlowPeriod: Number(row.ema_slow_period),
+    rsiPeriod: Number(row.rsi_period),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export async function updateAnalysisSettings(input: {
+  emaFastPeriod: number;
+  emaMidPeriod: number;
+  emaSlowPeriod: number;
+  rsiPeriod: number;
+}) {
+  await ensureSchema();
+  assertAnalysisSettings(input);
+
+  const now = new Date().toISOString();
+
+  await client.execute({
+    sql: `INSERT INTO analysis_settings (
+      id, ema_fast_period, ema_mid_period, ema_slow_period, rsi_period,
+      updated_at
+    ) VALUES ('global', ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      ema_fast_period = excluded.ema_fast_period,
+      ema_mid_period = excluded.ema_mid_period,
+      ema_slow_period = excluded.ema_slow_period,
+      rsi_period = excluded.rsi_period,
+      updated_at = excluded.updated_at`,
+    args: [
+      input.emaFastPeriod,
+      input.emaMidPeriod,
+      input.emaSlowPeriod,
+      input.rsiPeriod,
+      now,
+    ],
+  });
+}
+
 export async function listMarketRows(): Promise<MarketRow[]> {
   await ensureSchema();
 
@@ -897,6 +971,33 @@ async function assertInstrumentExists(instrumentId: string) {
 
   if (!result.rows[0]) {
     throw new Error("Choose a valid instrument.");
+  }
+}
+
+function assertAnalysisSettings(input: {
+  emaFastPeriod: number;
+  emaMidPeriod: number;
+  emaSlowPeriod: number;
+  rsiPeriod: number;
+}) {
+  const values = [
+    input.emaFastPeriod,
+    input.emaMidPeriod,
+    input.emaSlowPeriod,
+    input.rsiPeriod,
+  ];
+
+  if (values.some((value) => !Number.isInteger(value) || value < 1)) {
+    throw new Error("Indicator periods must be positive integers.");
+  }
+
+  if (
+    !(
+      input.emaFastPeriod < input.emaMidPeriod &&
+      input.emaMidPeriod < input.emaSlowPeriod
+    )
+  ) {
+    throw new Error("EMA periods must be ordered fast < mid < slow.");
   }
 }
 

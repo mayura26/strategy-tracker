@@ -14,6 +14,7 @@ const tables = [
   "market_bars",
   "combos",
   "combo_versions",
+  "analysis_settings",
 ] as const;
 
 const databaseUrl =

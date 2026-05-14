@@ -241,3 +241,12 @@ export const comboVersions = sqliteTable(
     ),
   }),
 );
+
+export const analysisSettings = sqliteTable("analysis_settings", {
+  id: text("id").primaryKey(),
+  emaFastPeriod: integer("ema_fast_period").notNull(),
+  emaMidPeriod: integer("ema_mid_period").notNull(),
+  emaSlowPeriod: integer("ema_slow_period").notNull(),
+  rsiPeriod: integer("rsi_period").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

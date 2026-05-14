@@ -9,10 +9,11 @@ import {
   MarketPerformanceChart,
 } from "@/components/charts";
 import { GoldenDailyDrilldown } from "@/components/golden-daily-drilldown";
+import { RegimeDiscoveryWorkbench } from "@/components/regime-discovery-workbench";
 import type { DailyRunMetric } from "@/lib/analytics";
 import { calculateGoldenDelta, calculateRunMetrics } from "@/lib/analytics";
 import type { MarketBar } from "@/lib/db/repository";
-import { getRunDetail } from "@/lib/db/repository";
+import { getAnalysisSettings, getRunDetail } from "@/lib/db/repository";
 import {
   formatCurrency,
   formatDate,
@@ -21,6 +22,7 @@ import {
   toneClass,
 } from "@/lib/format";
 import { discoverRegimeThresholds } from "@/lib/regime-discovery";
+import { buildPredictiveRegimeDays } from "@/lib/regime-features";
 
 export default async function RunDetailPage({
   params,
@@ -28,7 +30,10 @@ export default async function RunDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const run = await getRunDetail(id);
+  const [run, analysisSettings] = await Promise.all([
+    getRunDetail(id),
+    getAnalysisSettings(),
+  ]);
 
   if (!run) {
     notFound();
@@ -66,7 +71,13 @@ export default async function RunDetailPage({
     run.goldenRun?.dailyMetrics ?? [],
   );
   const regimeStats = buildRegimeStats(run.dailyMetrics, run.marketBars);
-  const thresholdSuggestions = discoverRegimeThresholds(regimeStats.joinedDays);
+  const predictiveDays = buildPredictiveRegimeDays(
+    run.dailyMetrics,
+    run.marketBars,
+    analysisSettings,
+  );
+  const thresholdSuggestions = discoverRegimeThresholds(predictiveDays);
+  const emaLabel = `${analysisSettings.emaFastPeriod}/${analysisSettings.emaMidPeriod}/${analysisSettings.emaSlowPeriod}`;
 
   return (
     <div className="grid gap-6">
@@ -153,6 +164,12 @@ export default async function RunDetailPage({
         instrumentSymbol={run.instrumentSymbol}
       />
 
+      <RegimeDiscoveryWorkbench
+        days={predictiveDays}
+        emaLabel={emaLabel}
+        rsiPeriod={analysisSettings.rsiPeriod}
+      />
+
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
         <div className="panel">
           <div className="section-title">
@@ -186,33 +203,36 @@ export default async function RunDetailPage({
         </div>
         <div className="panel overflow-x-auto">
           <div className="section-title">
-            <h2>Market days</h2>
-            <p>Daily PnL joined to cached Yahoo bars.</p>
+            <h2>Predictive market days</h2>
+            <p>Daily PnL joined to prior-session Yahoo features.</p>
           </div>
           <table className="data-table">
             <thead>
               <tr>
                 <th>Day</th>
                 <th>PnL</th>
-                <th>ATR 14</th>
-                <th>Range</th>
-                <th>Gap</th>
-                <th>Close</th>
+                <th>Prior day</th>
+                <th>Prev ATR</th>
+                <th>Prev RSI</th>
+                <th>EMA stack</th>
+                <th>EMA cross</th>
               </tr>
             </thead>
             <tbody>
-              {regimeStats.joinedDays.slice(-20).map((day) => (
+              {predictiveDays.slice(-20).map((day) => (
                 <tr key={day.tradingDate}>
                   <td>{day.tradingDate}</td>
                   <td className={toneClass(day.netProfit)}>
                     {formatCurrency(day.netProfit)}
                   </td>
-                  <td>{formatNumber(day.atr14)}</td>
-                  <td>{formatNumber(day.range)}</td>
-                  <td className={toneClass(day.gap)}>
-                    {formatNumber(day.gap)}
+                  <td>{day.previousTradingDate ?? "n/a"}</td>
+                  <td>{formatNumber(day.previousAtr14)}</td>
+                  <td>{formatNumber(day.previousRsi)}</td>
+                  <td>{formatRegimeState(day.previousEmaStack)}</td>
+                  <td>
+                    {formatRegimeState(day.previousEmaCrossFastMid)} /{" "}
+                    {formatRegimeState(day.previousEmaCrossMidSlow)}
                   </td>
-                  <td>{formatNumber(day.close)}</td>
                 </tr>
               ))}
             </tbody>
@@ -430,6 +450,14 @@ function formatRunCoverage(run: {
   }
 
   return `${run.coverageStartDate} to ${run.coverageEndDate}`;
+}
+
+function formatRegimeState(value: string | null) {
+  if (!value) {
+    return "n/a";
+  }
+
+  return value.replaceAll("-", " ");
 }
 
 function buildRegimeStats(days: DailyRunMetric[], bars: MarketBar[]) {

@@ -43,4 +43,44 @@ assertOk(
   "validation lift is positive",
 );
 
+const predictiveDays = Array.from({ length: 24 }, (_, index) => {
+  const highRsi = index % 2 === 0;
+
+  return {
+    tradingDate: `2026-02-${String(index + 1).padStart(2, "0")}`,
+    tradeCount: 1,
+    netProfit: highRsi ? 240 : -80,
+    cumulativeNetProfit: 0,
+    winCount: highRsi ? 1 : 0,
+    lossCount: highRsi ? 0 : 1,
+    maxDrawdown: highRsi ? 0 : -80,
+    bestTrade: highRsi ? 240 : -80,
+    worstTrade: highRsi ? 240 : -80,
+    avgMae: null,
+    avgMfe: null,
+    previousAtr14: highRsi ? 30 + index : 10 + index,
+    previousRsi: highRsi ? 65 : 35,
+    previousEmaStack: highRsi ? "bullish" : "bearish",
+    previousEmaCrossFastMid: highRsi ? "cross-up" : "none",
+    previousEmaCrossMidSlow: highRsi ? "none" : "cross-down",
+  };
+});
+const predictiveSuggestions = discoverRegimeThresholds(predictiveDays, {
+  minDays: 4,
+  limit: 12,
+});
+
+assertOk(
+  predictiveSuggestions.some((suggestion) =>
+    suggestion.condition.includes("Previous RSI"),
+  ),
+  "predictive RSI suggestions are included",
+);
+assertOk(
+  predictiveSuggestions.some((suggestion) =>
+    suggestion.condition.includes("Previous EMA stack"),
+  ),
+  "predictive EMA stack suggestions are included",
+);
+
 console.log("Regime discovery tests passed.");

@@ -4,13 +4,19 @@ import {
   createBotAction,
   createBotModeAction,
   createInstrumentAction,
+  updateAnalysisSettingsAction,
 } from "@/app/actions";
-import { listBotsWithModes, listInstruments } from "@/lib/db/repository";
+import {
+  getAnalysisSettings,
+  listBotsWithModes,
+  listInstruments,
+} from "@/lib/db/repository";
 
 export default async function SettingsPage() {
-  const [bots, instruments] = await Promise.all([
+  const [bots, instruments, analysisSettings] = await Promise.all([
     listBotsWithModes(),
     listInstruments(),
+    getAnalysisSettings(),
   ]);
 
   return (
@@ -111,6 +117,73 @@ export default async function SettingsPage() {
             Add instrument
           </button>
         </form>
+      </section>
+
+      <section className="panel">
+        <div className="section-title">
+          <div>
+            <h2>Analysis indicators</h2>
+            <p>Global defaults for predictive regime discovery.</p>
+          </div>
+        </div>
+        <form
+          action={updateAnalysisSettingsAction}
+          className="grid gap-3 md:grid-cols-5"
+        >
+          <label className="grid gap-2">
+            <span className="label-text">EMA fast</span>
+            <input
+              className="input"
+              defaultValue={analysisSettings.emaFastPeriod}
+              min="1"
+              name="emaFastPeriod"
+              required
+              type="number"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="label-text">EMA mid</span>
+            <input
+              className="input"
+              defaultValue={analysisSettings.emaMidPeriod}
+              min="1"
+              name="emaMidPeriod"
+              required
+              type="number"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="label-text">EMA slow</span>
+            <input
+              className="input"
+              defaultValue={analysisSettings.emaSlowPeriod}
+              min="1"
+              name="emaSlowPeriod"
+              required
+              type="number"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="label-text">RSI period</span>
+            <input
+              className="input"
+              defaultValue={analysisSettings.rsiPeriod}
+              min="1"
+              name="rsiPeriod"
+              required
+              type="number"
+            />
+          </label>
+          <div className="flex items-end">
+            <button className="primary-button w-full" type="submit">
+              Save indicators
+            </button>
+          </div>
+        </form>
+        <p className="quiet-text mt-3 text-sm">
+          EMA periods must be ordered fast &lt; mid &lt; slow. Current defaults
+          are used on run-detail predictive regime analysis.
+        </p>
       </section>
 
       <section className="panel">

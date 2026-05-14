@@ -4,13 +4,22 @@ export type RegimeDiscoveryDay = DailyRunMetric & {
   atr14?: number | null;
   range?: number | null;
   gap?: number | null;
+  previousAtr14?: number | null;
+  previousRange?: number | null;
+  previousGap?: number | null;
+  previousReturn?: number | null;
+  previousTrueRange?: number | null;
+  previousRsi?: number | null;
+  previousEmaStack?: string | null;
+  previousEmaCrossFastMid?: string | null;
+  previousEmaCrossMidSlow?: string | null;
 };
 
 export type ThresholdSuggestion = {
   key: string;
-  feature: "ATR 14" | "Range" | "Gap" | "Absolute gap";
+  feature: string;
   condition: string;
-  threshold: number;
+  threshold: number | null;
   selectedCount: number;
   otherCount: number;
   selectedAveragePnl: number;
@@ -26,6 +35,24 @@ export type ThresholdSuggestion = {
   validated: boolean;
   action: "favor" | "avoid";
 };
+
+type NumericField =
+  | "atr14"
+  | "range"
+  | "gap"
+  | "absGap"
+  | "previousAtr14"
+  | "previousRange"
+  | "previousGap"
+  | "previousAbsGap"
+  | "previousReturn"
+  | "previousTrueRange"
+  | "previousRsi";
+
+type CategoricalField =
+  | "previousEmaStack"
+  | "previousEmaCrossFastMid"
+  | "previousEmaCrossMidSlow";
 
 const quantiles = [0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 0.8];
 
@@ -43,22 +70,104 @@ export function discoverRegimeThresholds(
   const trainingDays = sortedDays.slice(0, splitIndex);
   const validationDays = sortedDays.slice(splitIndex);
   const suggestions = [
-    ...discoverFeature(
+    ...discoverNumericFeature(
       trainingDays,
       validationDays,
       "ATR 14",
       "atr14",
       minDays,
     ),
-    ...discoverFeature(trainingDays, validationDays, "Range", "range", minDays),
-    ...discoverFeature(
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Previous ATR14",
+      "previousAtr14",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Range",
+      "range",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Previous range",
+      "previousRange",
+      minDays,
+    ),
+    ...discoverNumericFeature(
       trainingDays,
       validationDays,
       "Absolute gap",
       "absGap",
       minDays,
     ),
-    ...discoverFeature(trainingDays, validationDays, "Gap", "gap", minDays),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Previous absolute gap",
+      "previousAbsGap",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Gap",
+      "gap",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Previous gap",
+      "previousGap",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Previous return",
+      "previousReturn",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Previous true range",
+      "previousTrueRange",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Previous RSI",
+      "previousRsi",
+      minDays,
+    ),
+    ...discoverCategoricalFeature(
+      trainingDays,
+      validationDays,
+      "Previous EMA stack",
+      "previousEmaStack",
+      minDays,
+    ),
+    ...discoverCategoricalFeature(
+      trainingDays,
+      validationDays,
+      "EMA fast/mid cross",
+      "previousEmaCrossFastMid",
+      minDays,
+    ),
+    ...discoverCategoricalFeature(
+      trainingDays,
+      validationDays,
+      "EMA mid/slow cross",
+      "previousEmaCrossMidSlow",
+      minDays,
+    ),
   ];
 
   return suggestions
@@ -66,11 +175,11 @@ export function discoverRegimeThresholds(
     .slice(0, limit);
 }
 
-function discoverFeature(
+function discoverNumericFeature(
   trainingDays: RegimeDiscoveryDay[],
   validationDays: RegimeDiscoveryDay[],
-  feature: ThresholdSuggestion["feature"],
-  field: "atr14" | "range" | "gap" | "absGap",
+  feature: string,
+  field: NumericField,
   minDays: number,
 ) {
   const values = trainingDays
@@ -113,8 +222,8 @@ function discoverFeature(
 function evaluateThreshold(
   trainingDays: RegimeDiscoveryDay[],
   validationDays: RegimeDiscoveryDay[],
-  feature: ThresholdSuggestion["feature"],
-  field: "atr14" | "range" | "gap" | "absGap",
+  feature: string,
+  field: NumericField,
   threshold: number,
   operator: "gte" | "lt",
   minDays: number,
@@ -189,14 +298,126 @@ function evaluateThreshold(
   ];
 }
 
-function valueFor(
-  day: RegimeDiscoveryDay,
-  field: "atr14" | "range" | "gap" | "absGap",
+function discoverCategoricalFeature(
+  trainingDays: RegimeDiscoveryDay[],
+  validationDays: RegimeDiscoveryDay[],
+  feature: string,
+  field: CategoricalField,
+  minDays: number,
 ) {
+  const values = uniqueStrings(
+    trainingDays
+      .map((day) => categoryFor(day, field))
+      .filter((value): value is string => value !== null && value !== "none"),
+  );
+  const suggestions: ThresholdSuggestion[] = [];
+
+  for (const value of values) {
+    suggestions.push(
+      ...evaluateCategory(
+        trainingDays,
+        validationDays,
+        feature,
+        field,
+        value,
+        minDays,
+      ),
+    );
+  }
+
+  return suggestions;
+}
+
+function evaluateCategory(
+  trainingDays: RegimeDiscoveryDay[],
+  validationDays: RegimeDiscoveryDay[],
+  feature: string,
+  field: CategoricalField,
+  value: string,
+  minDays: number,
+): ThresholdSuggestion[] {
+  const eligibleTrainingDays = trainingDays.filter(
+    (day) => categoryFor(day, field) !== null,
+  );
+  const selected = eligibleTrainingDays.filter(
+    (day) => categoryFor(day, field) === value,
+  );
+  const other = eligibleTrainingDays.filter((day) => !selected.includes(day));
+
+  if (selected.length < minDays || other.length < minDays) {
+    return [];
+  }
+
+  const eligibleValidationDays = validationDays.filter(
+    (day) => categoryFor(day, field) !== null,
+  );
+  const validationSelected = eligibleValidationDays.filter(
+    (day) => categoryFor(day, field) === value,
+  );
+  const validationOther = eligibleValidationDays.filter(
+    (day) => !validationSelected.includes(day),
+  );
+  const selectedAveragePnl = averagePnl(selected);
+  const otherAveragePnl = averagePnl(other);
+  const lift = selectedAveragePnl - otherAveragePnl;
+  const validationAveragePnl =
+    validationSelected.length > 0 ? averagePnl(validationSelected) : null;
+  const validationOtherAveragePnl =
+    validationOther.length > 0 ? averagePnl(validationOther) : null;
+  const validationLift =
+    validationAveragePnl !== null && validationOtherAveragePnl !== null
+      ? validationAveragePnl - validationOtherAveragePnl
+      : null;
+  const validationWinRate =
+    validationSelected.length > 0
+      ? validationSelected.filter((day) => day.netProfit > 0).length /
+        validationSelected.length
+      : null;
+  const validated =
+    validationLift !== null &&
+    Math.sign(validationLift) === Math.sign(lift) &&
+    Math.abs(validationLift) > 0;
+
+  return [
+    {
+      key: `${field}-${value}`,
+      feature,
+      condition: `${feature} = ${formatCategory(value)}`,
+      threshold: null,
+      selectedCount: selected.length,
+      otherCount: other.length,
+      selectedAveragePnl,
+      otherAveragePnl,
+      lift,
+      selectedWinRate:
+        selected.filter((day) => day.netProfit > 0).length / selected.length,
+      selectedTotalPnl: selected.reduce((sum, day) => sum + day.netProfit, 0),
+      validationCount: validationSelected.length,
+      validationAveragePnl,
+      validationOtherAveragePnl,
+      validationLift,
+      validationWinRate,
+      validated,
+      action: lift >= 0 ? "favor" : "avoid",
+    },
+  ];
+}
+
+function valueFor(day: RegimeDiscoveryDay, field: NumericField) {
   if (field === "absGap") {
     return day.gap === null || day.gap === undefined ? null : Math.abs(day.gap);
   }
 
+  if (field === "previousAbsGap") {
+    return day.previousGap === null || day.previousGap === undefined
+      ? null
+      : Math.abs(day.previousGap);
+  }
+
+  return day[field] ?? null;
+}
+
+function categoryFor(day: RegimeDiscoveryDay, field: CategoricalField) {
   return day[field] ?? null;
 }
 
@@ -219,6 +440,14 @@ function quantileValue(sortedValues: number[], percentile: number) {
 
 function unique(values: number[]) {
   return [...new Set(values.filter((value) => Number.isFinite(value)))];
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values)];
+}
+
+function formatCategory(value: string) {
+  return value.replaceAll("-", " ");
 }
 
 function score(suggestion: ThresholdSuggestion) {

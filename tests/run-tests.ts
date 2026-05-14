@@ -4,3 +4,4 @@ import "@/tests/import-preview.test";
 import "@/tests/market-performance.test";
 import "@/tests/ninjatrader.test";
 import "@/tests/regime-discovery.test";
+import "@/tests/regime-features.test";

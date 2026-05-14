@@ -192,6 +192,15 @@ async function initializeSchema() {
 
     CREATE INDEX IF NOT EXISTS combo_versions_combo_idx
       ON combo_versions(combo_id, version_number DESC);
+
+    CREATE TABLE IF NOT EXISTS analysis_settings (
+      id TEXT PRIMARY KEY,
+      ema_fast_period INTEGER NOT NULL,
+      ema_mid_period INTEGER NOT NULL,
+      ema_slow_period INTEGER NOT NULL,
+      rsi_period INTEGER NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   await addColumnIfMissing(

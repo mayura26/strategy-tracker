@@ -16,6 +16,7 @@ import {
   listInstruments,
   saveCombo,
   setGoldenRun,
+  updateAnalysisSettings,
   updateSavedCombo,
   upsertMarketBar,
 } from "@/lib/db/repository";
@@ -146,6 +147,32 @@ export async function createInstrumentAction(formData: FormData) {
   revalidatePath("/settings");
   revalidatePath("/runs/new");
   revalidatePath("/market-data");
+}
+
+export async function updateAnalysisSettingsAction(formData: FormData) {
+  await requireUser();
+
+  await updateAnalysisSettings({
+    emaFastPeriod: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .parse(formData.get("emaFastPeriod")),
+    emaMidPeriod: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .parse(formData.get("emaMidPeriod")),
+    emaSlowPeriod: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .parse(formData.get("emaSlowPeriod")),
+    rsiPeriod: z.coerce.number().int().min(1).parse(formData.get("rsiPeriod")),
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/runs");
 }
 
 export async function setGoldenRunAction(formData: FormData) {
