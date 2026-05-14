@@ -111,3 +111,11 @@ This app keeps the web surface focused on import, curation, comparison, and visu
 - Python should return explanations plus machine-readable factors so the web UI can render tables, thresholds, and charts.
 - Long-running jobs should be asynchronous: queued, running, complete, failed.
 - The service must treat Yahoo-derived values as cached enrichment, not authoritative market data.
+
+## Current Next.js Stub
+
+- `/analysis` can create stored `regime-discovery` jobs from an existing run.
+- `GET /api/analysis/jobs` lists stored jobs for the authenticated user session.
+- `POST /api/analysis/jobs` accepts `{ "jobType": "regime-discovery", "runId": "..." }`.
+- `GET /api/analysis/jobs/{jobId}` returns one stored job.
+- Until a Python worker is attached, jobs complete synchronously with local heuristic predictive-regime results.

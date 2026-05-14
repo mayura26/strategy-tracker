@@ -15,6 +15,7 @@ const tables = [
   "combos",
   "combo_versions",
   "analysis_settings",
+  "analysis_jobs",
 ] as const;
 
 const databaseUrl =

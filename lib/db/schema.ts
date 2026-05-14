@@ -250,3 +250,24 @@ export const analysisSettings = sqliteTable("analysis_settings", {
   rsiPeriod: integer("rsi_period").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const analysisJobs = sqliteTable(
+  "analysis_jobs",
+  {
+    id: text("id").primaryKey(),
+    jobType: text("job_type").notNull(),
+    status: text("status").notNull(),
+    inputJson: text("input_json").notNull(),
+    resultJson: text("result_json"),
+    error: text("error"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    completedAt: text("completed_at"),
+  },
+  (table) => ({
+    statusIndex: index("analysis_jobs_status_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+  }),
+);

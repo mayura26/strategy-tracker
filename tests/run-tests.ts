@@ -1,3 +1,4 @@
+import "@/tests/analysis-contract.test";
 import "@/tests/combo-analytics.test";
 import "@/tests/comparison-analytics.test";
 import "@/tests/import-preview.test";

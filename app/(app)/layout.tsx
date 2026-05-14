@@ -1,6 +1,7 @@
 import {
   Activity,
   BarChart3,
+  BrainCircuit,
   Database,
   GitCompareArrows,
   Layers3,
@@ -17,6 +18,7 @@ const navItems = [
   { href: "/runs/new", label: "Import", icon: Upload },
   { href: "/compare", label: "Compare", icon: GitCompareArrows },
   { href: "/combos", label: "Combos", icon: Layers3 },
+  { href: "/analysis", label: "Analysis", icon: BrainCircuit },
   { href: "/market-data", label: "Market data", icon: Database },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

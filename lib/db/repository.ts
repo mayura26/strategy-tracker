@@ -131,6 +131,20 @@ export type AnalysisSettings = {
   updatedAt: string | null;
 };
 
+export type AnalysisJobStatus = "queued" | "running" | "complete" | "failed";
+
+export type AnalysisJob = {
+  id: string;
+  jobType: string;
+  status: AnalysisJobStatus;
+  inputJson: string;
+  resultJson: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
 type InsertImportedRunInput = {
   fileName: string;
   fileHash: string;
@@ -824,6 +838,76 @@ export async function updateAnalysisSettings(input: {
   });
 }
 
+export async function createAnalysisJob(input: {
+  jobType: string;
+  inputJson: string;
+  resultJson?: string | null;
+  status?: AnalysisJobStatus;
+  error?: string | null;
+}) {
+  await ensureSchema();
+
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+  const status = input.status ?? "queued";
+  const completedAt = status === "complete" || status === "failed" ? now : null;
+
+  await client.execute({
+    sql: `INSERT INTO analysis_jobs (
+      id, job_type, status, input_json, result_json, error, created_at,
+      updated_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id,
+      input.jobType,
+      status,
+      input.inputJson,
+      input.resultJson ?? null,
+      input.error ?? null,
+      now,
+      now,
+      completedAt,
+    ],
+  });
+
+  const job = await getAnalysisJob(id);
+
+  if (!job) {
+    throw new Error("Analysis job could not be created.");
+  }
+
+  return job;
+}
+
+export async function listAnalysisJobs(): Promise<AnalysisJob[]> {
+  await ensureSchema();
+
+  const result = await client.execute(`
+    SELECT id, job_type, status, input_json, result_json, error, created_at,
+      updated_at, completed_at
+    FROM analysis_jobs
+    ORDER BY created_at DESC
+  `);
+
+  return result.rows.map(analysisJobFromRow);
+}
+
+export async function getAnalysisJob(id: string): Promise<AnalysisJob | null> {
+  await ensureSchema();
+
+  const result = await client.execute({
+    sql: `SELECT id, job_type, status, input_json, result_json, error,
+        created_at, updated_at, completed_at
+      FROM analysis_jobs
+      WHERE id = ?
+      LIMIT 1`,
+    args: [id],
+  });
+  const row = result.rows[0];
+
+  return row ? analysisJobFromRow(row) : null;
+}
+
 export async function listMarketRows(): Promise<MarketRow[]> {
   await ensureSchema();
 
@@ -1173,6 +1257,33 @@ function comboVersionFromRow(row: Record<string, unknown>): ComboVersion {
     configJson: String(row.config_json),
     createdAt: String(row.created_at),
   };
+}
+
+function analysisJobFromRow(row: Record<string, unknown>): AnalysisJob {
+  return {
+    id: String(row.id),
+    jobType: String(row.job_type),
+    status: analysisJobStatus(row.status),
+    inputJson: String(row.input_json),
+    resultJson: stringOrNull(row.result_json),
+    error: stringOrNull(row.error),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+    completedAt: stringOrNull(row.completed_at),
+  };
+}
+
+function analysisJobStatus(value: unknown): AnalysisJobStatus {
+  if (
+    value === "queued" ||
+    value === "running" ||
+    value === "complete" ||
+    value === "failed"
+  ) {
+    return value;
+  }
+
+  return "failed";
 }
 
 async function insertComboVersion(input: {

@@ -22,12 +22,13 @@ Last updated: 2026-05-13
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
 - Run detail underlying instrument chart with cached OHLC candlesticks and daily PnL bars.
 - Run detail predictive regime discovery with adjustable ATR/RSI thresholds, configurable EMA/RSI periods, previous-day ATR/RSI/EMA features, and chronological validation.
+- Analysis job queue with immutable regime-discovery snapshots, local heuristic results, `/analysis` UI, and authenticated `/api/analysis/jobs` route handlers for future Python worker integration.
 - Run detail golden daily drilldown with overlap coverage, filters, outperformance thresholds, visual PnL overlay, delta histogram, and collapsible day table.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
 - Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, contribution days, and version history snapshots.
 - Visual comparison workspace with scoped run selection, overlap-only or union date handling, core metric bars, outperformance-vs counts with material-delta filtering, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, and daily/session box and dot plots.
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, outperformance summaries, overlap/union daily alignment, similarity filtering, and day buckets.
-- Python analysis service contract in `docs/python-analysis-service.md`.
+- Python analysis service contract in `docs/python-analysis-service.md`; the Next.js app now stores compatible job snapshots and local heuristic results.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.
 - Tests for CSV parsing, import preview, currency parsing, session trading-date assignment, run/daily metrics, comparison analytics, combo analytics, and regime threshold discovery.
 
@@ -38,7 +39,7 @@ Last updated: 2026-05-13
 - Instruments must be created in settings before import; session start hour and Yahoo symbol are stored per instrument.
 - Regime discovery is currently heuristic and predictive-feature based; it does not yet train ML models.
 - Comparison charts use custom SVG/HTML primitives; there is no zoom/brush interaction yet.
-- Python/ML is documented only; no Next.js API stub or Python service is implemented.
+- Python worker execution is still deferred; current analysis jobs complete synchronously using local heuristic regime discovery.
 
 ## Useful Commands
 
@@ -71,4 +72,4 @@ If `BACKUP_DIR` is absent, backups are written to `./backups`, which is also ign
 
 1. Add zoom/brush and richer tooltips to comparison charts if the custom primitives become too limited.
 2. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
-3. Add richer ML-style validation for discovered predictive regime thresholds.
+3. Add a Python worker that consumes stored analysis job snapshots and writes richer ML validation results back to the app.

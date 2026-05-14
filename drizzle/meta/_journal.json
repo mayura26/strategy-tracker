@@ -15,6 +15,13 @@
       "when": 1778723937906,
       "tag": "0001_sweet_ikaris",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1778725379244,
+      "tag": "0002_slimy_vapor",
+      "breakpoints": true
     }
   ]
 }

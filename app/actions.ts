@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { createRegimeDiscoveryAnalysisJob } from "@/lib/analysis-service";
 import {
   createBot,
   createBotMode,
@@ -324,6 +325,21 @@ export async function refreshAllMarketDataAction() {
     formData.set("yahooSymbol", instrument.yahooSymbol);
     await refreshMarketDataAction(formData);
   }
+}
+
+export async function createRegimeAnalysisJobAction(formData: FormData) {
+  await requireUser();
+
+  const runId = String(formData.get("runId") ?? "").trim();
+
+  if (!runId) {
+    throw new Error("Choose a run before creating an analysis job.");
+  }
+
+  const job = await createRegimeDiscoveryAnalysisJob(runId);
+
+  revalidatePath("/analysis");
+  redirect(`/analysis?job=${job.id}`);
 }
 
 async function requireUser() {

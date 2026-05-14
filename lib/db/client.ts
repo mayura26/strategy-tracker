@@ -201,6 +201,21 @@ async function initializeSchema() {
       rsi_period INTEGER NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS analysis_jobs (
+      id TEXT PRIMARY KEY,
+      job_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      input_json TEXT NOT NULL,
+      result_json TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS analysis_jobs_status_idx
+      ON analysis_jobs(status, created_at);
   `);
 
   await addColumnIfMissing(
