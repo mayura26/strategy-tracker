@@ -326,6 +326,41 @@ export async function listRuns(): Promise<RunSummary[]> {
   return result.rows.map(mapRunSummary);
 }
 
+export async function deleteRuns(runIds: string[]): Promise<number> {
+  await ensureSchema();
+
+  const ids = [...new Set(runIds.map((id) => id.trim()).filter(Boolean))];
+
+  if (ids.length === 0) {
+    return 0;
+  }
+
+  const placeholders = ids.map(() => "?").join(", ");
+
+  await client.execute({
+    sql: `DELETE FROM golden_baselines WHERE run_id IN (${placeholders})`,
+    args: ids,
+  });
+  await client.execute({
+    sql: `DELETE FROM imports WHERE run_id IN (${placeholders})`,
+    args: ids,
+  });
+  await client.execute({
+    sql: `DELETE FROM trade_summaries WHERE run_id IN (${placeholders})`,
+    args: ids,
+  });
+  await client.execute({
+    sql: `DELETE FROM daily_run_metrics WHERE run_id IN (${placeholders})`,
+    args: ids,
+  });
+  await client.execute({
+    sql: `DELETE FROM runs WHERE id IN (${placeholders})`,
+    args: ids,
+  });
+
+  return ids.length;
+}
+
 export async function getRunDetail(id: string): Promise<RunDetail | null> {
   await ensureSchema();
 

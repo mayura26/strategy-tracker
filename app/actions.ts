@@ -11,6 +11,7 @@ import {
   createBot,
   createBotMode,
   createInstrument,
+  deleteRuns,
   deleteSavedCombo,
   getInstrument,
   insertImportedRun,
@@ -417,6 +418,23 @@ export async function createRegimeAnalysisJobAction(formData: FormData) {
 
   revalidatePath("/analysis");
   redirect(`/analysis?job=${job.id}`);
+}
+
+export async function deleteRunsAction(formData: FormData) {
+  await requireUser();
+
+  const ids = formData
+    .getAll("runId")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+
+  if (ids.length === 0) {
+    throw new Error("Select at least one run to delete.");
+  }
+
+  await deleteRuns(ids);
+  revalidateSharedCatalogPaths();
+  redirect("/runs");
 }
 
 function revalidateSharedCatalogPaths() {

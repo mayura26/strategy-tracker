@@ -1,21 +1,9 @@
-import {
-  BrainCircuit,
-  Crown,
-  Plus,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Plus, Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 
-import { createRegimeAnalysisJobAction } from "@/app/actions";
+import { RunsLibraryTable } from "@/components/runs-library-table";
 import { listRuns } from "@/lib/db/repository";
-import {
-  formatCurrency,
-  formatDate,
-  formatNumber,
-  formatPercent,
-  toneClass,
-} from "@/lib/format";
+import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 
 type RunFilters = {
   q?: string;
@@ -196,76 +184,7 @@ export default async function RunsPage({
             </div>
           </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>Scope</th>
-                <th>Trades</th>
-                <th>Net PnL</th>
-                <th>Win</th>
-                <th>PF</th>
-                <th>Drawdown</th>
-                <th>Data period</th>
-                <th>Imported</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRuns.map((run) => (
-                <tr key={run.id}>
-                  <td>
-                    <Link
-                      className="link-text inline-flex items-center gap-2 font-semibold"
-                      href={`/runs/${run.id}`}
-                    >
-                      {run.isGolden ? <Crown aria-hidden size={15} /> : null}
-                      {run.name}
-                    </Link>
-                  </td>
-                  <td className="quiet-text">
-                    {run.botName} / {run.botModeName ?? "No mode"} /{" "}
-                    {run.instrumentSymbol} / {run.timeframe}
-                  </td>
-                  <td>{run.tradeCount}</td>
-                  <td className={toneClass(run.netProfit)}>
-                    {formatCurrency(run.netProfit)}
-                  </td>
-                  <td>{formatPercent(run.winRate)}</td>
-                  <td>{formatNumber(run.profitFactor)}</td>
-                  <td className={toneClass(run.maxDrawdown)}>
-                    {formatCurrency(run.maxDrawdown)}
-                  </td>
-                  <td>
-                    <span className="rounded-sm border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-xs font-semibold text-sky-200">
-                      {formatCoverage(run)}
-                    </span>
-                  </td>
-                  <td>{formatDate(run.createdAt)}</td>
-                  <td>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Link
-                        className="ghost-button min-h-9 px-3"
-                        href={`/runs/${run.id}`}
-                      >
-                        Open
-                      </Link>
-                      <form action={createRegimeAnalysisJobAction}>
-                        <input name="runId" type="hidden" value={run.id} />
-                        <button
-                          className="ghost-button min-h-9 px-3"
-                          type="submit"
-                        >
-                          <BrainCircuit aria-hidden size={15} />
-                          Analyze
-                        </button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RunsLibraryTable runs={filteredRuns} />
         )}
       </section>
     </div>
@@ -293,17 +212,6 @@ function FilterSelect({
       ))}
     </select>
   );
-}
-
-function formatCoverage(run: {
-  coverageStartDate: string | null;
-  coverageEndDate: string | null;
-}) {
-  if (!run.coverageStartDate || !run.coverageEndDate) {
-    return "n/a";
-  }
-
-  return `${run.coverageStartDate} to ${run.coverageEndDate}`;
 }
 
 function Metric({

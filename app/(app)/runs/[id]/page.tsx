@@ -12,6 +12,7 @@ import {
   EquityCurve,
   MarketPerformanceChart,
 } from "@/components/charts";
+import { DeleteRunForm } from "@/components/delete-run-form";
 import { GoldenDailyDrilldown } from "@/components/golden-daily-drilldown";
 import { RegimeDiscoveryWorkbench } from "@/components/regime-discovery-workbench";
 import type { DailyRunMetric } from "@/lib/analytics";
@@ -444,6 +445,19 @@ export default async function RunDetailPage({
               Save run metadata
             </button>
           </form>
+          <div className="mt-8 border-t border-rose-500/25 pt-6">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-rose-200/90">
+              Danger zone
+            </h3>
+            <p className="quiet-text mt-2 text-sm">
+              Permanently delete this run, its trades, daily metrics, and import
+              record. If it is the golden baseline for its scope, that pin is
+              cleared.
+            </p>
+            <div className="mt-4">
+              <DeleteRunForm runId={run.id} runName={run.name} />
+            </div>
+          </div>
         </aside>
       </section>
     </div>
