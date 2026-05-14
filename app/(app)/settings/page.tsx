@@ -1,10 +1,13 @@
-import { Plus } from "lucide-react";
+import { Plus, Save } from "lucide-react";
 
 import {
   createBotAction,
   createBotModeAction,
   createInstrumentAction,
   updateAnalysisSettingsAction,
+  updateBotAction,
+  updateBotModeAction,
+  updateInstrumentAction,
 } from "@/app/actions";
 import {
   getAnalysisSettings,
@@ -189,7 +192,7 @@ export default async function SettingsPage() {
       <section className="panel">
         <div className="section-title">
           <h2>Bots and modes</h2>
-          <p>{bots.length} bots configured.</p>
+          <p>{bots.length} bots configured. Rename bots or modes in place.</p>
         </div>
         {bots.length === 0 ? (
           <p className="quiet-text text-sm">
@@ -199,21 +202,50 @@ export default async function SettingsPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {bots.map((bot) => (
               <article className="mini-metric" key={bot.id}>
-                <span>Bot</span>
-                <strong>{bot.name}</strong>
+                <form action={updateBotAction} className="grid gap-2">
+                  <input name="botId" type="hidden" value={bot.id} />
+                  <label className="grid gap-2">
+                    <span>Bot</span>
+                    <input
+                      className="input"
+                      defaultValue={bot.name}
+                      name="name"
+                      required
+                    />
+                  </label>
+                  <button className="ghost-button min-h-9" type="submit">
+                    <Save aria-hidden size={15} />
+                    Save bot
+                  </button>
+                </form>
                 <div className="mt-4 grid gap-2">
                   {bot.modes.length === 0 ? (
                     <p className="quiet-text text-sm">No modes yet.</p>
                   ) : (
                     bot.modes.map((mode) => (
-                      <div className="subtle-card p-3" key={mode.id}>
-                        <p className="strong-text font-semibold">{mode.name}</p>
-                        {mode.description ? (
-                          <p className="quiet-text mt-1 text-sm">
-                            {mode.description}
-                          </p>
-                        ) : null}
-                      </div>
+                      <form
+                        action={updateBotModeAction}
+                        className="subtle-card grid gap-2 p-3"
+                        key={mode.id}
+                      >
+                        <input name="botModeId" type="hidden" value={mode.id} />
+                        <input
+                          className="input min-h-10"
+                          defaultValue={mode.name}
+                          name="name"
+                          required
+                        />
+                        <input
+                          className="input min-h-10"
+                          defaultValue={mode.description}
+                          name="description"
+                          placeholder="Description"
+                        />
+                        <button className="ghost-button min-h-9" type="submit">
+                          <Save aria-hidden size={15} />
+                          Save mode
+                        </button>
+                      </form>
                     ))
                   )}
                 </div>
@@ -226,37 +258,84 @@ export default async function SettingsPage() {
       <section className="panel">
         <div className="section-title">
           <h2>Instruments</h2>
-          <p>{instruments.length} instruments configured.</p>
+          <p>
+            {instruments.length} instruments configured. Session changes affect
+            new imports only.
+          </p>
         </div>
         {instruments.length === 0 ? (
           <p className="quiet-text text-sm">
             No instruments yet. Add symbols like ES, NQ, SIL, or CL above.
           </p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Name</th>
-                <th>Yahoo</th>
-                <th>Timezone</th>
-                <th>Session start</th>
-              </tr>
-            </thead>
-            <tbody>
-              {instruments.map((instrument) => (
-                <tr key={instrument.id}>
-                  <td className="strong-text font-semibold">
-                    {instrument.symbol}
-                  </td>
-                  <td>{instrument.name ?? "n/a"}</td>
-                  <td>{instrument.yahooSymbol ?? "n/a"}</td>
-                  <td>{instrument.exchangeTimezone}</td>
-                  <td>{instrument.sessionStartHour}:00</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="grid gap-3">
+            {instruments.map((instrument) => (
+              <form
+                action={updateInstrumentAction}
+                className="subtle-card grid gap-3 p-3 lg:grid-cols-[0.7fr_1fr_0.8fr_1.15fr_0.65fr_auto]"
+                key={instrument.id}
+              >
+                <input
+                  name="instrumentId"
+                  type="hidden"
+                  value={instrument.id}
+                />
+                <label className="grid gap-2">
+                  <span className="label-text">Symbol</span>
+                  <input
+                    className="input"
+                    defaultValue={instrument.symbol}
+                    name="symbol"
+                    required
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="label-text">Name</span>
+                  <input
+                    className="input"
+                    defaultValue={instrument.name ?? ""}
+                    name="name"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="label-text">Yahoo</span>
+                  <input
+                    className="input"
+                    defaultValue={instrument.yahooSymbol ?? ""}
+                    name="yahooSymbol"
+                    placeholder="ES=F"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="label-text">Timezone</span>
+                  <input
+                    className="input"
+                    defaultValue={instrument.exchangeTimezone}
+                    name="exchangeTimezone"
+                    required
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="label-text">Session</span>
+                  <input
+                    className="input"
+                    defaultValue={instrument.sessionStartHour}
+                    max="23"
+                    min="0"
+                    name="sessionStartHour"
+                    required
+                    type="number"
+                  />
+                </label>
+                <div className="flex items-end">
+                  <button className="ghost-button w-full" type="submit">
+                    <Save aria-hidden size={15} />
+                    Save
+                  </button>
+                </div>
+              </form>
+            ))}
+          </div>
         )}
       </section>
     </div>

@@ -18,6 +18,9 @@ import {
   saveCombo,
   setGoldenRun,
   updateAnalysisSettings,
+  updateBot,
+  updateBotMode,
+  updateInstrument,
   updateSavedCombo,
   upsertMarketBar,
 } from "@/lib/db/repository";
@@ -114,6 +117,17 @@ export async function createBotAction(formData: FormData) {
   revalidatePath("/runs/new");
 }
 
+export async function updateBotAction(formData: FormData) {
+  await requireUser();
+
+  await updateBot({
+    id: String(formData.get("botId") ?? ""),
+    name: String(formData.get("name") ?? ""),
+  });
+
+  revalidateSharedCatalogPaths();
+}
+
 export async function createBotModeAction(formData: FormData) {
   await requireUser();
 
@@ -125,6 +139,18 @@ export async function createBotModeAction(formData: FormData) {
 
   revalidatePath("/settings");
   revalidatePath("/runs/new");
+}
+
+export async function updateBotModeAction(formData: FormData) {
+  await requireUser();
+
+  await updateBotMode({
+    id: String(formData.get("botModeId") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    description: String(formData.get("description") ?? ""),
+  });
+
+  revalidateSharedCatalogPaths();
 }
 
 export async function createInstrumentAction(formData: FormData) {
@@ -147,6 +173,29 @@ export async function createInstrumentAction(formData: FormData) {
 
   revalidatePath("/settings");
   revalidatePath("/runs/new");
+  revalidatePath("/market-data");
+}
+
+export async function updateInstrumentAction(formData: FormData) {
+  await requireUser();
+
+  await updateInstrument({
+    id: String(formData.get("instrumentId") ?? ""),
+    symbol: String(formData.get("symbol") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    yahooSymbol: String(formData.get("yahooSymbol") ?? ""),
+    exchangeTimezone:
+      String(formData.get("exchangeTimezone") ?? "").trim() ||
+      "America/New_York",
+    sessionStartHour: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(23)
+      .parse(formData.get("sessionStartHour") || 18),
+  });
+
+  revalidateSharedCatalogPaths();
   revalidatePath("/market-data");
 }
 
@@ -340,6 +389,15 @@ export async function createRegimeAnalysisJobAction(formData: FormData) {
 
   revalidatePath("/analysis");
   redirect(`/analysis?job=${job.id}`);
+}
+
+function revalidateSharedCatalogPaths() {
+  revalidatePath("/settings");
+  revalidatePath("/runs");
+  revalidatePath("/runs/new");
+  revalidatePath("/compare");
+  revalidatePath("/combos");
+  revalidatePath("/analysis");
 }
 
 async function requireUser() {

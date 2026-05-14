@@ -453,6 +453,28 @@ export async function createBot(input: { name: string }) {
   return id;
 }
 
+export async function updateBot(input: { id: string; name: string }) {
+  await ensureSchema();
+
+  const id = input.id.trim();
+  const name = input.name.trim();
+
+  if (!id || !name) {
+    throw new Error("Bot and name are required.");
+  }
+
+  const result = await client.execute({
+    sql: `UPDATE bots
+      SET name = ?, updated_at = ?
+      WHERE id = ?`,
+    args: [name, new Date().toISOString(), id],
+  });
+
+  if (result.rowsAffected === 0) {
+    throw new Error("Bot not found.");
+  }
+}
+
 export async function createBotMode(input: {
   botId: string;
   name: string;
@@ -477,6 +499,32 @@ export async function createBotMode(input: {
   });
 
   return id;
+}
+
+export async function updateBotMode(input: {
+  id: string;
+  name: string;
+  description: string;
+}) {
+  await ensureSchema();
+
+  const id = input.id.trim();
+  const name = input.name.trim();
+
+  if (!id || !name) {
+    throw new Error("Mode and name are required.");
+  }
+
+  const result = await client.execute({
+    sql: `UPDATE bot_modes
+      SET name = ?, description = ?, updated_at = ?
+      WHERE id = ?`,
+    args: [name, input.description.trim(), new Date().toISOString(), id],
+  });
+
+  if (result.rowsAffected === 0) {
+    throw new Error("Mode not found.");
+  }
 }
 
 export async function createInstrument(input: {
@@ -515,6 +563,52 @@ export async function createInstrument(input: {
   });
 
   return id;
+}
+
+export async function updateInstrument(input: {
+  id: string;
+  symbol: string;
+  name: string;
+  yahooSymbol: string;
+  exchangeTimezone: string;
+  sessionStartHour: number;
+}) {
+  await ensureSchema();
+
+  const id = input.id.trim();
+  const symbol = input.symbol.trim().toUpperCase();
+
+  if (!id || !symbol) {
+    throw new Error("Instrument and symbol are required.");
+  }
+
+  if (
+    !Number.isInteger(input.sessionStartHour) ||
+    input.sessionStartHour < 0 ||
+    input.sessionStartHour > 23
+  ) {
+    throw new Error("Session start hour must be between 0 and 23.");
+  }
+
+  const result = await client.execute({
+    sql: `UPDATE instruments
+      SET symbol = ?, name = ?, yahoo_symbol = ?, exchange_timezone = ?,
+        session_start_hour = ?, updated_at = ?
+      WHERE id = ?`,
+    args: [
+      symbol,
+      input.name.trim() || symbol,
+      input.yahooSymbol.trim() || null,
+      input.exchangeTimezone.trim() || "America/New_York",
+      input.sessionStartHour,
+      new Date().toISOString(),
+      id,
+    ],
+  });
+
+  if (result.rowsAffected === 0) {
+    throw new Error("Instrument not found.");
+  }
 }
 
 export async function listBotsWithModes(): Promise<BotOption[]> {

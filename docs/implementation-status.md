@@ -9,7 +9,7 @@ Last updated: 2026-05-13
 - `proxy.ts` route protection plus server-side auth checks in mutations.
 - Turso/libSQL database layer using `@libsql/client`; falls back to `strategy-tracker.local.db` when Turso env vars are absent.
 - Runtime SQLite schema initialization plus Drizzle migrations for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, combos, combo versions, and analysis settings.
-- Curated bot, bot-mode, and instrument management under `/settings`; imports select bot, mode, and instrument from dropdowns.
+- Curated bot, bot-mode, and instrument management under `/settings`, including inline edits for names, mode descriptions, Yahoo symbols, timezone, and session start; imports select bot, mode, and instrument from dropdowns.
 - NinjaTrader Strategy Analyzer summary CSV parser for the example export in `examples/`.
 - Import form for missing metadata: bot, bot mode, instrument, run name, timeframe, settings JSON, tags, notes.
 - Import preview/confirmation flow showing parsed trade count, date range, first/last trade, core metrics, largest daily moves, and data-quality warnings before saving.
