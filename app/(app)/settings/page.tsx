@@ -131,7 +131,7 @@ export default async function SettingsPage() {
         </div>
         <form
           action={updateAnalysisSettingsAction}
-          className="grid gap-3 md:grid-cols-5"
+          className="grid gap-3 md:grid-cols-4 xl:grid-cols-8"
         >
           <label className="grid gap-2">
             <span className="label-text">EMA fast</span>
@@ -177,6 +177,52 @@ export default async function SettingsPage() {
               type="number"
             />
           </label>
+          <label className="grid gap-2">
+            <span className="label-text">ATR period</span>
+            <input
+              className="input"
+              defaultValue={analysisSettings.atrPeriod}
+              min="1"
+              name="atrPeriod"
+              required
+              type="number"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="label-text">Cross lookback</span>
+            <input
+              className="input"
+              defaultValue={analysisSettings.emaCrossLookbackDays}
+              min="1"
+              name="emaCrossLookbackDays"
+              required
+              type="number"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="label-text">RSI lower</span>
+            <input
+              className="input"
+              defaultValue={analysisSettings.rsiLowerBand}
+              max="100"
+              min="0"
+              name="rsiLowerBand"
+              required
+              type="number"
+            />
+          </label>
+          <label className="grid gap-2">
+            <span className="label-text">RSI upper</span>
+            <input
+              className="input"
+              defaultValue={analysisSettings.rsiUpperBand}
+              max="100"
+              min="0"
+              name="rsiUpperBand"
+              required
+              type="number"
+            />
+          </label>
           <div className="flex items-end">
             <button className="primary-button w-full" type="submit">
               Save indicators
@@ -185,7 +231,8 @@ export default async function SettingsPage() {
         </form>
         <p className="quiet-text mt-3 text-sm">
           EMA periods must be ordered fast &lt; mid &lt; slow. Current defaults
-          are used on run-detail predictive regime analysis.
+          are used on run-detail predictive regime analysis, threshold
+          discovery, and market charts.
         </p>
       </section>
 

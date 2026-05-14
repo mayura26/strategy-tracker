@@ -3,9 +3,11 @@ import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
 
 export type EmaStack = "bullish" | "bearish" | "mixed" | null;
 export type EmaCross = "cross-up" | "cross-down" | "none" | null;
+export type RsiBand = "below-lower" | "mid-band" | "above-upper" | null;
 
 export type PredictiveRegimeDay = DailyRunMetric & {
   previousTradingDate: string | null;
+  previousAtr: number | null;
   previousAtr14: number | null;
   previousRange: number | null;
   previousGap: number | null;
@@ -13,12 +15,15 @@ export type PredictiveRegimeDay = DailyRunMetric & {
   previousReturn: number | null;
   previousTrueRange: number | null;
   previousRsi: number | null;
+  previousRsiBand: RsiBand;
   previousEmaFast: number | null;
   previousEmaMid: number | null;
   previousEmaSlow: number | null;
   previousEmaStack: EmaStack;
   previousEmaCrossFastMid: EmaCross;
   previousEmaCrossMidSlow: EmaCross;
+  previousEmaCrossFastMidWithinLookback: EmaCross;
+  previousEmaCrossMidSlowWithinLookback: EmaCross;
 };
 
 export type PredictiveBucketSummary = {
@@ -31,15 +36,19 @@ export type PredictiveBucketSummary = {
   worstDay: number | null;
 };
 
-type IndicatorRow = MarketBar & {
+export type IndicatorRow = MarketBar & {
+  atr: number | null;
   return: number | null;
   rsi: number | null;
+  rsiBand: RsiBand;
   emaFast: number | null;
   emaMid: number | null;
   emaSlow: number | null;
   emaStack: EmaStack;
   emaCrossFastMid: EmaCross;
   emaCrossMidSlow: EmaCross;
+  emaCrossFastMidWithinLookback: EmaCross;
+  emaCrossMidSlowWithinLookback: EmaCross;
 };
 
 export function buildPredictiveRegimeDays(
@@ -65,19 +74,25 @@ export function buildPredictiveRegimeDays(
       return {
         ...day,
         previousTradingDate: previous?.tradingDate ?? null,
-        previousAtr14: previous?.atr14 ?? null,
+        previousAtr: previous?.atr ?? null,
+        previousAtr14: previous?.atr ?? null,
         previousRange: previous?.range ?? null,
         previousGap: previous?.gap ?? null,
         previousClose: previous?.close ?? null,
         previousReturn: previous?.return ?? null,
         previousTrueRange: previous?.trueRange ?? null,
         previousRsi: previous?.rsi ?? null,
+        previousRsiBand: previous?.rsiBand ?? null,
         previousEmaFast: previous?.emaFast ?? null,
         previousEmaMid: previous?.emaMid ?? null,
         previousEmaSlow: previous?.emaSlow ?? null,
         previousEmaStack: previous?.emaStack ?? null,
         previousEmaCrossFastMid: previous?.emaCrossFastMid ?? null,
         previousEmaCrossMidSlow: previous?.emaCrossMidSlow ?? null,
+        previousEmaCrossFastMidWithinLookback:
+          previous?.emaCrossFastMidWithinLookback ?? null,
+        previousEmaCrossMidSlowWithinLookback:
+          previous?.emaCrossMidSlowWithinLookback ?? null,
       };
     });
 }
@@ -94,8 +109,12 @@ export function buildMarketIndicatorRows(
   const emaMid = calculateEmaValues(closes, settings.emaMidPeriod);
   const emaSlow = calculateEmaValues(closes, settings.emaSlowPeriod);
   const rsi = calculateRsiValues(closes, settings.rsiPeriod);
+  const atr = calculateAtrValues(
+    sortedBars.map((bar) => bar.trueRange),
+    settings.atrPeriod,
+  );
 
-  return sortedBars.map((bar, index) => {
+  const baseRows = sortedBars.map((bar, index) => {
     const previousBar = index > 0 ? sortedBars[index - 1] : null;
     const returnValue =
       previousBar !== null &&
@@ -112,8 +131,14 @@ export function buildMarketIndicatorRows(
 
     return {
       ...bar,
+      atr: atr[index],
       return: returnValue,
       rsi: rsi[index],
+      rsiBand: classifyRsiBand(
+        rsi[index],
+        settings.rsiLowerBand,
+        settings.rsiUpperBand,
+      ),
       emaFast: emaFast[index],
       emaMid: emaMid[index],
       emaSlow: emaSlow[index],
@@ -136,8 +161,24 @@ export function buildMarketIndicatorRows(
               emaSlow[index],
             )
           : null,
+      emaCrossFastMidWithinLookback: null,
+      emaCrossMidSlowWithinLookback: null,
     };
   });
+
+  return baseRows.map((row, index) => ({
+    ...row,
+    emaCrossFastMidWithinLookback: findCrossWithinLookback(
+      baseRows.map((item) => item.emaCrossFastMid),
+      index,
+      settings.emaCrossLookbackDays,
+    ),
+    emaCrossMidSlowWithinLookback: findCrossWithinLookback(
+      baseRows.map((item) => item.emaCrossMidSlow),
+      index,
+      settings.emaCrossLookbackDays,
+    ),
+  }));
 }
 
 export function calculateEmaValues(
@@ -210,6 +251,35 @@ export function calculateRsiValues(
   return output;
 }
 
+export function calculateAtrValues(
+  values: Array<number | null>,
+  period: number,
+): Array<number | null> {
+  const output: Array<number | null> = Array.from(
+    { length: values.length },
+    () => null,
+  );
+  const window: number[] = [];
+
+  values.forEach((value, index) => {
+    if (value === null || !Number.isFinite(value)) {
+      return;
+    }
+
+    window.push(value);
+
+    if (window.length > period) {
+      window.shift();
+    }
+
+    if (window.length === period) {
+      output[index] = average(window);
+    }
+  });
+
+  return output;
+}
+
 export function classifyEmaStack(
   fast: number | null,
   mid: number | null,
@@ -256,20 +326,60 @@ export function classifyEmaCross(
   return "none";
 }
 
+export function classifyRsiBand(
+  rsi: number | null,
+  lowerBand: number,
+  upperBand: number,
+): RsiBand {
+  if (rsi === null) {
+    return null;
+  }
+
+  if (rsi < lowerBand) {
+    return "below-lower";
+  }
+
+  if (rsi > upperBand) {
+    return "above-upper";
+  }
+
+  return "mid-band";
+}
+
+export function findCrossWithinLookback(
+  crosses: EmaCross[],
+  index: number,
+  lookbackDays: number,
+): EmaCross {
+  const startIndex = Math.max(0, index - lookbackDays + 1);
+
+  for (let cursor = index; cursor >= startIndex; cursor -= 1) {
+    const cross = crosses[cursor];
+
+    if (cross === "cross-up" || cross === "cross-down") {
+      return cross;
+    }
+  }
+
+  return "none";
+}
+
 export function summarizePredictiveThreshold(
   days: PredictiveRegimeDay[],
-  field: "previousAtr14" | "previousRsi",
+  field: "previousAtr" | "previousRsi",
   threshold: number,
+  label?: string,
 ) {
   const eligibleDays = days.filter((day) => day[field] !== null);
+  const fieldLabel = label ?? labelForField(field);
 
   return {
     above: summarizeBucket(
-      `${labelForField(field)} >= ${threshold}`,
+      `${fieldLabel} >= ${threshold}`,
       eligibleDays.filter((day) => (day[field] ?? 0) >= threshold),
     ),
     below: summarizeBucket(
-      `${labelForField(field)} < ${threshold}`,
+      `${fieldLabel} < ${threshold}`,
       eligibleDays.filter((day) => (day[field] ?? 0) < threshold),
     ),
   };
@@ -280,7 +390,10 @@ export function summarizePredictiveCategory(
   field:
     | "previousEmaStack"
     | "previousEmaCrossFastMid"
-    | "previousEmaCrossMidSlow",
+    | "previousEmaCrossMidSlow"
+    | "previousEmaCrossFastMidWithinLookback"
+    | "previousEmaCrossMidSlowWithinLookback"
+    | "previousRsiBand",
 ) {
   const eligibleDays = days.filter((day) => day[field] !== null);
   const values = [
@@ -337,6 +450,6 @@ function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function labelForField(field: "previousAtr14" | "previousRsi") {
-  return field === "previousAtr14" ? "Previous ATR14" : "Previous RSI";
+function labelForField(field: "previousAtr" | "previousRsi") {
+  return field === "previousAtr" ? "Previous ATR" : "Previous RSI";
 }

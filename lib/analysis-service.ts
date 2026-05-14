@@ -27,7 +27,10 @@ export async function createRegimeDiscoveryAnalysisJob(runId: string) {
     run.marketBars,
     analysisSettings,
   );
-  const suggestions = discoverRegimeThresholds(predictiveDays);
+  const suggestions = discoverRegimeThresholds(predictiveDays, {
+    atrPeriod: analysisSettings.atrPeriod,
+    emaCrossLookbackDays: analysisSettings.emaCrossLookbackDays,
+  });
   const snapshot = buildRegimeDiscoverySnapshot(run, predictiveDays);
   const result = buildLocalRegimeDiscoveryResult(run.name, suggestions);
 

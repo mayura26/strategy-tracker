@@ -131,6 +131,10 @@ export type AnalysisSettings = {
   emaMidPeriod: number;
   emaSlowPeriod: number;
   rsiPeriod: number;
+  atrPeriod: number;
+  emaCrossLookbackDays: number;
+  rsiLowerBand: number;
+  rsiUpperBand: number;
   updatedAt: string | null;
 };
 
@@ -172,6 +176,10 @@ export const defaultAnalysisSettings: AnalysisSettings = {
   emaMidPeriod: 13,
   emaSlowPeriod: 21,
   rsiPeriod: 14,
+  atrPeriod: 5,
+  emaCrossLookbackDays: 5,
+  rsiLowerBand: 30,
+  rsiUpperBand: 70,
   updatedAt: null,
 };
 
@@ -975,7 +983,8 @@ export async function getAnalysisSettings(): Promise<AnalysisSettings> {
 
   const result = await client.execute({
     sql: `SELECT ema_fast_period, ema_mid_period, ema_slow_period,
-        rsi_period, updated_at
+        rsi_period, atr_period, ema_cross_lookback_days, rsi_lower_band,
+        rsi_upper_band, updated_at
       FROM analysis_settings
       WHERE id = 'global'
       LIMIT 1`,
@@ -992,6 +1001,10 @@ export async function getAnalysisSettings(): Promise<AnalysisSettings> {
     emaMidPeriod: Number(row.ema_mid_period),
     emaSlowPeriod: Number(row.ema_slow_period),
     rsiPeriod: Number(row.rsi_period),
+    atrPeriod: Number(row.atr_period),
+    emaCrossLookbackDays: Number(row.ema_cross_lookback_days),
+    rsiLowerBand: Number(row.rsi_lower_band),
+    rsiUpperBand: Number(row.rsi_upper_band),
     updatedAt: String(row.updated_at),
   };
 }
@@ -1001,6 +1014,10 @@ export async function updateAnalysisSettings(input: {
   emaMidPeriod: number;
   emaSlowPeriod: number;
   rsiPeriod: number;
+  atrPeriod: number;
+  emaCrossLookbackDays: number;
+  rsiLowerBand: number;
+  rsiUpperBand: number;
 }) {
   await ensureSchema();
   assertAnalysisSettings(input);
@@ -1010,19 +1027,28 @@ export async function updateAnalysisSettings(input: {
   await client.execute({
     sql: `INSERT INTO analysis_settings (
       id, ema_fast_period, ema_mid_period, ema_slow_period, rsi_period,
+      atr_period, ema_cross_lookback_days, rsi_lower_band, rsi_upper_band,
       updated_at
-    ) VALUES ('global', ?, ?, ?, ?, ?)
+    ) VALUES ('global', ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       ema_fast_period = excluded.ema_fast_period,
       ema_mid_period = excluded.ema_mid_period,
       ema_slow_period = excluded.ema_slow_period,
       rsi_period = excluded.rsi_period,
+      atr_period = excluded.atr_period,
+      ema_cross_lookback_days = excluded.ema_cross_lookback_days,
+      rsi_lower_band = excluded.rsi_lower_band,
+      rsi_upper_band = excluded.rsi_upper_band,
       updated_at = excluded.updated_at`,
     args: [
       input.emaFastPeriod,
       input.emaMidPeriod,
       input.emaSlowPeriod,
       input.rsiPeriod,
+      input.atrPeriod,
+      input.emaCrossLookbackDays,
+      input.rsiLowerBand,
+      input.rsiUpperBand,
       now,
     ],
   });
@@ -1266,12 +1292,18 @@ function assertAnalysisSettings(input: {
   emaMidPeriod: number;
   emaSlowPeriod: number;
   rsiPeriod: number;
+  atrPeriod: number;
+  emaCrossLookbackDays: number;
+  rsiLowerBand: number;
+  rsiUpperBand: number;
 }) {
   const values = [
     input.emaFastPeriod,
     input.emaMidPeriod,
     input.emaSlowPeriod,
     input.rsiPeriod,
+    input.atrPeriod,
+    input.emaCrossLookbackDays,
   ];
 
   if (values.some((value) => !Number.isInteger(value) || value < 1)) {
@@ -1285,6 +1317,16 @@ function assertAnalysisSettings(input: {
     )
   ) {
     throw new Error("EMA periods must be ordered fast < mid < slow.");
+  }
+
+  if (
+    !Number.isInteger(input.rsiLowerBand) ||
+    !Number.isInteger(input.rsiUpperBand) ||
+    input.rsiLowerBand < 0 ||
+    input.rsiUpperBand > 100 ||
+    input.rsiLowerBand >= input.rsiUpperBand
+  ) {
+    throw new Error("RSI bands must satisfy 0 <= lower < upper <= 100.");
   }
 }
 

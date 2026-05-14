@@ -221,6 +221,24 @@ export async function updateAnalysisSettingsAction(formData: FormData) {
       .min(1)
       .parse(formData.get("emaSlowPeriod")),
     rsiPeriod: z.coerce.number().int().min(1).parse(formData.get("rsiPeriod")),
+    atrPeriod: z.coerce.number().int().min(1).parse(formData.get("atrPeriod")),
+    emaCrossLookbackDays: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .parse(formData.get("emaCrossLookbackDays")),
+    rsiLowerBand: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(100)
+      .parse(formData.get("rsiLowerBand")),
+    rsiUpperBand: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(100)
+      .parse(formData.get("rsiUpperBand")),
   });
 
   revalidatePath("/settings");

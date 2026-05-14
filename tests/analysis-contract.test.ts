@@ -26,8 +26,8 @@ function runAnalysisContractTests() {
   const result = buildLocalRegimeDiscoveryResult("Test run", [
     {
       action: "favor",
-      condition: "Previous ATR14 >= 20.00",
-      feature: "Previous ATR14",
+      condition: "Previous ATR5 >= 20.00",
+      feature: "Previous ATR5",
       key: "atr",
       lift: 75,
       otherAveragePnl: 25,
@@ -49,7 +49,7 @@ function runAnalysisContractTests() {
   assertEqual(result.source, "local-heuristic");
   assertEqual(result.factors.length, 1);
   assertOk(
-    result.artifacts[0].content.includes("Previous ATR14"),
+    result.artifacts[0].content.includes("Previous ATR5"),
     "analysis report contains factor",
   );
 }
@@ -134,9 +134,12 @@ function fakePredictiveDay(
     maxDrawdown: -40,
     netProfit,
     previousAtr14: 22,
+    previousAtr: 22,
     previousClose: 5010,
     previousEmaCrossFastMid: "cross-up",
+    previousEmaCrossFastMidWithinLookback: "cross-up",
     previousEmaCrossMidSlow: "none",
+    previousEmaCrossMidSlowWithinLookback: "none",
     previousEmaFast: 5005,
     previousEmaMid: 5000,
     previousEmaSlow: 4990,
@@ -145,6 +148,7 @@ function fakePredictiveDay(
     previousRange: 30,
     previousReturn: 0.01,
     previousRsi: 55,
+    previousRsiBand: "mid-band",
     previousTradingDate: "2026-01-02",
     previousTrueRange: 35,
     tradeCount: 1,

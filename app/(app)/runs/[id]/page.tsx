@@ -10,14 +10,14 @@ import {
   DailyBars,
   DailyPnlDistribution,
   EquityCurve,
-  MarketPerformanceChart,
 } from "@/components/charts";
 import { DeleteRunForm } from "@/components/delete-run-form";
 import { GoldenDailyDrilldown } from "@/components/golden-daily-drilldown";
+import { MarketPerformanceChart } from "@/components/market-performance-chart";
 import { RegimeDiscoveryWorkbench } from "@/components/regime-discovery-workbench";
 import type { DailyRunMetric } from "@/lib/analytics";
 import { calculateGoldenDelta, calculateRunMetrics } from "@/lib/analytics";
-import type { MarketBar } from "@/lib/db/repository";
+import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
 import { getAnalysisSettings, getRunDetail } from "@/lib/db/repository";
 import {
   formatCurrency,
@@ -27,7 +27,10 @@ import {
   toneClass,
 } from "@/lib/format";
 import { discoverRegimeThresholds } from "@/lib/regime-discovery";
-import { buildPredictiveRegimeDays } from "@/lib/regime-features";
+import {
+  buildMarketIndicatorRows,
+  buildPredictiveRegimeDays,
+} from "@/lib/regime-features";
 
 export default async function RunDetailPage({
   params,
@@ -75,13 +78,24 @@ export default async function RunDetailPage({
     run.dailyMetrics,
     run.goldenRun?.dailyMetrics ?? [],
   );
-  const regimeStats = buildRegimeStats(run.dailyMetrics, run.marketBars);
+  const indicatorRows = buildMarketIndicatorRows(
+    run.marketBars,
+    analysisSettings,
+  );
+  const regimeStats = buildRegimeStats(
+    run.dailyMetrics,
+    run.marketBars,
+    analysisSettings,
+  );
   const predictiveDays = buildPredictiveRegimeDays(
     run.dailyMetrics,
     run.marketBars,
     analysisSettings,
   );
-  const thresholdSuggestions = discoverRegimeThresholds(predictiveDays);
+  const thresholdSuggestions = discoverRegimeThresholds(predictiveDays, {
+    atrPeriod: analysisSettings.atrPeriod,
+    emaCrossLookbackDays: analysisSettings.emaCrossLookbackDays,
+  });
   const emaLabel = `${analysisSettings.emaFastPeriod}/${analysisSettings.emaMidPeriod}/${analysisSettings.emaSlowPeriod}`;
 
   return (
@@ -175,13 +189,19 @@ export default async function RunDetailPage({
       <MarketPerformanceChart
         bars={run.marketBars}
         days={run.dailyMetrics}
+        indicatorRows={indicatorRows}
         instrumentSymbol={run.instrumentSymbol}
+        settings={analysisSettings}
       />
 
       <RegimeDiscoveryWorkbench
+        atrPeriod={analysisSettings.atrPeriod}
         days={predictiveDays}
+        emaCrossLookbackDays={analysisSettings.emaCrossLookbackDays}
         emaLabel={emaLabel}
+        rsiLowerBand={analysisSettings.rsiLowerBand}
         rsiPeriod={analysisSettings.rsiPeriod}
+        rsiUpperBand={analysisSettings.rsiUpperBand}
       />
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
@@ -196,13 +216,13 @@ export default async function RunDetailPage({
           </div>
           <div className="grid gap-3">
             <RegimeMetric
-              label="High ATR avg"
+              label={`High ATR${analysisSettings.atrPeriod} avg`}
               tone={regimeStats.highAtr.averagePnl}
               value={formatCurrency(regimeStats.highAtr.averagePnl)}
               detail={`${regimeStats.highAtr.count} days / ${formatPercent(regimeStats.highAtr.winRate)} win`}
             />
             <RegimeMetric
-              label="Low ATR avg"
+              label={`Low ATR${analysisSettings.atrPeriod} avg`}
               tone={regimeStats.lowAtr.averagePnl}
               value={formatCurrency(regimeStats.lowAtr.averagePnl)}
               detail={`${regimeStats.lowAtr.count} days / ${formatPercent(regimeStats.lowAtr.winRate)} win`}
@@ -226,10 +246,12 @@ export default async function RunDetailPage({
                 <th>Day</th>
                 <th>PnL</th>
                 <th>Prior day</th>
-                <th>Prev ATR</th>
+                <th>Prev ATR{analysisSettings.atrPeriod}</th>
                 <th>Prev RSI</th>
+                <th>RSI band</th>
                 <th>EMA stack</th>
                 <th>EMA cross</th>
+                <th>Cross window</th>
               </tr>
             </thead>
             <tbody>
@@ -240,12 +262,22 @@ export default async function RunDetailPage({
                     {formatCurrency(day.netProfit)}
                   </td>
                   <td>{day.previousTradingDate ?? "n/a"}</td>
-                  <td>{formatNumber(day.previousAtr14)}</td>
+                  <td>{formatNumber(day.previousAtr)}</td>
                   <td>{formatNumber(day.previousRsi)}</td>
+                  <td>{formatRegimeState(day.previousRsiBand)}</td>
                   <td>{formatRegimeState(day.previousEmaStack)}</td>
                   <td>
                     {formatRegimeState(day.previousEmaCrossFastMid)} /{" "}
                     {formatRegimeState(day.previousEmaCrossMidSlow)}
+                  </td>
+                  <td>
+                    {formatRegimeState(
+                      day.previousEmaCrossFastMidWithinLookback,
+                    )}{" "}
+                    /{" "}
+                    {formatRegimeState(
+                      day.previousEmaCrossMidSlowWithinLookback,
+                    )}
                   </td>
                 </tr>
               ))}
@@ -531,31 +563,40 @@ function formatRegimeState(value: string | null) {
   return value.replaceAll("-", " ");
 }
 
-function buildRegimeStats(days: DailyRunMetric[], bars: MarketBar[]) {
-  const barsByDate = new Map(bars.map((bar) => [bar.tradingDate, bar]));
+function buildRegimeStats(
+  days: DailyRunMetric[],
+  bars: MarketBar[],
+  settings: AnalysisSettings,
+) {
+  const barsByDate = new Map(
+    buildMarketIndicatorRows(bars, settings).map((bar) => [
+      bar.tradingDate,
+      bar,
+    ]),
+  );
   const joinedDays = days.map((day) => {
     const bar = barsByDate.get(day.tradingDate);
     return {
       ...day,
-      atr14: bar?.atr14 ?? null,
+      atr: bar?.atr ?? null,
       range: bar?.range ?? null,
       gap: bar?.gap ?? null,
       close: bar?.close ?? null,
     };
   });
-  const daysWithAtr = joinedDays.filter((day) => day.atr14 !== null);
+  const daysWithAtr = joinedDays.filter((day) => day.atr !== null);
   const daysWithRange = joinedDays.filter((day) => day.range !== null);
-  const atrMedian = median(daysWithAtr.map((day) => day.atr14 ?? 0));
+  const atrMedian = median(daysWithAtr.map((day) => day.atr ?? 0));
   const rangeMedian = median(daysWithRange.map((day) => day.range ?? 0));
 
   return {
     joinedDays,
     marketDayCount: daysWithAtr.length,
     highAtr: summarizeRegime(
-      daysWithAtr.filter((day) => (day.atr14 ?? 0) >= atrMedian),
+      daysWithAtr.filter((day) => (day.atr ?? 0) >= atrMedian),
     ),
     lowAtr: summarizeRegime(
-      daysWithAtr.filter((day) => (day.atr14 ?? 0) < atrMedian),
+      daysWithAtr.filter((day) => (day.atr ?? 0) < atrMedian),
     ),
     highRange: summarizeRegime(
       daysWithRange.filter((day) => (day.range ?? 0) >= rangeMedian),
@@ -564,7 +605,7 @@ function buildRegimeStats(days: DailyRunMetric[], bars: MarketBar[]) {
 }
 
 function summarizeRegime(
-  days: Array<DailyRunMetric & { atr14?: number | null }>,
+  days: Array<DailyRunMetric & { atr?: number | null }>,
 ) {
   if (days.length === 0) {
     return {

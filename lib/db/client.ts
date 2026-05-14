@@ -199,6 +199,10 @@ async function initializeSchema() {
       ema_mid_period INTEGER NOT NULL,
       ema_slow_period INTEGER NOT NULL,
       rsi_period INTEGER NOT NULL,
+      atr_period INTEGER NOT NULL DEFAULT 5,
+      ema_cross_lookback_days INTEGER NOT NULL DEFAULT 5,
+      rsi_lower_band INTEGER NOT NULL DEFAULT 30,
+      rsi_upper_band INTEGER NOT NULL DEFAULT 70,
       updated_at TEXT NOT NULL
     );
 
@@ -232,6 +236,26 @@ async function initializeSchema() {
     CREATE UNIQUE INDEX IF NOT EXISTS golden_baselines_scope_mode_idx
       ON golden_baselines(bot_id, bot_mode_id, instrument_id, timeframe)
   `);
+  await addColumnIfMissing(
+    "analysis_settings",
+    "atr_period",
+    "INTEGER NOT NULL DEFAULT 5",
+  );
+  await addColumnIfMissing(
+    "analysis_settings",
+    "ema_cross_lookback_days",
+    "INTEGER NOT NULL DEFAULT 5",
+  );
+  await addColumnIfMissing(
+    "analysis_settings",
+    "rsi_lower_band",
+    "INTEGER NOT NULL DEFAULT 30",
+  );
+  await addColumnIfMissing(
+    "analysis_settings",
+    "rsi_upper_band",
+    "INTEGER NOT NULL DEFAULT 70",
+  );
 }
 
 async function addColumnIfMissing(

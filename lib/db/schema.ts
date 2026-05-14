@@ -248,6 +248,10 @@ export const analysisSettings = sqliteTable("analysis_settings", {
   emaMidPeriod: integer("ema_mid_period").notNull(),
   emaSlowPeriod: integer("ema_slow_period").notNull(),
   rsiPeriod: integer("rsi_period").notNull(),
+  atrPeriod: integer("atr_period").notNull().default(5),
+  emaCrossLookbackDays: integer("ema_cross_lookback_days").notNull().default(5),
+  rsiLowerBand: integer("rsi_lower_band").notNull().default(30),
+  rsiUpperBand: integer("rsi_upper_band").notNull().default(70),
   updatedAt: text("updated_at").notNull(),
 });
 

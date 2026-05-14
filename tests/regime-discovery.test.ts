@@ -16,7 +16,7 @@ const days = Array.from({ length: 20 }, (_, index) => {
     worstTrade: highAtr ? 300 : -50,
     avgMae: null,
     avgMfe: null,
-    atr14: highAtr ? 40 + index : 10 + index,
+    atr: highAtr ? 40 + index : 10 + index,
     range: highAtr ? 55 + index : 15 + index,
     gap: index % 2 === 0 ? 1 : -1,
   };
@@ -30,6 +30,7 @@ assertEqual(topSuggestion.action, "favor", "top threshold action");
 assertOk(topSuggestion.lift > 0, "top threshold lift is positive");
 assertOk(
   topSuggestion.condition.includes("ATR 14") ||
+    topSuggestion.condition.includes("ATR5") ||
     topSuggestion.condition.includes("Range"),
   "top threshold uses volatility feature",
 );
@@ -58,16 +59,21 @@ const predictiveDays = Array.from({ length: 24 }, (_, index) => {
     worstTrade: highRsi ? 240 : -80,
     avgMae: null,
     avgMfe: null,
-    previousAtr14: highRsi ? 30 + index : 10 + index,
+    previousAtr: highRsi ? 30 + index : 10 + index,
     previousRsi: highRsi ? 65 : 35,
+    previousRsiBand: highRsi ? "mid-band" : "below-lower",
     previousEmaStack: highRsi ? "bullish" : "bearish",
     previousEmaCrossFastMid: highRsi ? "cross-up" : "none",
     previousEmaCrossMidSlow: highRsi ? "none" : "cross-down",
+    previousEmaCrossFastMidWithinLookback: highRsi ? "cross-up" : "none",
+    previousEmaCrossMidSlowWithinLookback: highRsi ? "none" : "cross-down",
   };
 });
 const predictiveSuggestions = discoverRegimeThresholds(predictiveDays, {
+  atrPeriod: 5,
+  emaCrossLookbackDays: 5,
   minDays: 4,
-  limit: 12,
+  limit: 30,
 });
 
 assertOk(
@@ -81,6 +87,18 @@ assertOk(
     suggestion.condition.includes("Previous EMA stack"),
   ),
   "predictive EMA stack suggestions are included",
+);
+assertOk(
+  predictiveSuggestions.some((suggestion) =>
+    suggestion.condition.includes("Previous RSI band"),
+  ),
+  "predictive RSI band suggestions are included",
+);
+assertOk(
+  predictiveSuggestions.some((suggestion) =>
+    suggestion.condition.includes("within 5 sessions"),
+  ),
+  "predictive EMA lookback suggestions are included",
 );
 
 console.log("Regime discovery tests passed.");

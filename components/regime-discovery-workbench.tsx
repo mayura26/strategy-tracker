@@ -15,14 +15,22 @@ export function RegimeDiscoveryWorkbench({
   days,
   emaLabel,
   rsiPeriod,
+  atrPeriod,
+  emaCrossLookbackDays,
+  rsiLowerBand,
+  rsiUpperBand,
 }: {
   days: PredictiveRegimeDay[];
   emaLabel: string;
   rsiPeriod: number;
+  atrPeriod: number;
+  emaCrossLookbackDays: number;
+  rsiLowerBand: number;
+  rsiUpperBand: number;
 }) {
   const defaultAtr = median(
     days
-      .map((day) => day.previousAtr14)
+      .map((day) => day.previousAtr)
       .filter((value): value is number => value !== null),
   );
   const [atrThreshold, setAtrThreshold] = useState(
@@ -30,8 +38,14 @@ export function RegimeDiscoveryWorkbench({
   );
   const [rsiThreshold, setRsiThreshold] = useState(50);
   const atrSummary = useMemo(
-    () => summarizePredictiveThreshold(days, "previousAtr14", atrThreshold),
-    [days, atrThreshold],
+    () =>
+      summarizePredictiveThreshold(
+        days,
+        "previousAtr",
+        atrThreshold,
+        `Previous ATR${atrPeriod}`,
+      ),
+    [days, atrThreshold, atrPeriod],
   );
   const rsiSummary = useMemo(
     () => summarizePredictiveThreshold(days, "previousRsi", rsiThreshold),
@@ -39,6 +53,10 @@ export function RegimeDiscoveryWorkbench({
   );
   const stackSummary = useMemo(
     () => summarizePredictiveCategory(days, "previousEmaStack"),
+    [days],
+  );
+  const rsiBandSummary = useMemo(
+    () => summarizePredictiveCategory(days, "previousRsiBand"),
     [days],
   );
   const fastMidCrossSummary = useMemo(
@@ -49,6 +67,22 @@ export function RegimeDiscoveryWorkbench({
     () => summarizePredictiveCategory(days, "previousEmaCrossMidSlow"),
     [days],
   );
+  const fastMidLookbackSummary = useMemo(
+    () =>
+      summarizePredictiveCategory(
+        days,
+        "previousEmaCrossFastMidWithinLookback",
+      ),
+    [days],
+  );
+  const midSlowLookbackSummary = useMemo(
+    () =>
+      summarizePredictiveCategory(
+        days,
+        "previousEmaCrossMidSlowWithinLookback",
+      ),
+    [days],
+  );
 
   return (
     <section className="panel">
@@ -57,7 +91,7 @@ export function RegimeDiscoveryWorkbench({
           <h2>Predictive regime workbench</h2>
           <p>
             Uses prior-session market state only. EMA {emaLabel}, RSI{" "}
-            {rsiPeriod}.
+            {rsiPeriod}, ATR{atrPeriod}.
           </p>
         </div>
         <SlidersHorizontal aria-hidden className="quiet-text" size={20} />
@@ -65,7 +99,7 @@ export function RegimeDiscoveryWorkbench({
 
       <div className="grid gap-4 xl:grid-cols-2">
         <ThresholdPanel
-          label="Previous ATR14"
+          label={`Previous ATR${atrPeriod}`}
           onChange={setAtrThreshold}
           step="0.25"
           summary={[atrSummary.above, atrSummary.below]}
@@ -82,8 +116,20 @@ export function RegimeDiscoveryWorkbench({
 
       <section className="mt-5 grid gap-4 xl:grid-cols-3">
         <CategoryPanel title="Previous EMA stack" rows={stackSummary} />
+        <CategoryPanel
+          title={`Previous RSI band ${rsiLowerBand}/${rsiUpperBand}`}
+          rows={rsiBandSummary}
+        />
         <CategoryPanel title="Fast / mid cross" rows={fastMidCrossSummary} />
         <CategoryPanel title="Mid / slow cross" rows={midSlowCrossSummary} />
+        <CategoryPanel
+          title={`Fast / mid cross within ${emaCrossLookbackDays}`}
+          rows={fastMidLookbackSummary}
+        />
+        <CategoryPanel
+          title={`Mid / slow cross within ${emaCrossLookbackDays}`}
+          rows={midSlowLookbackSummary}
+        />
       </section>
     </section>
   );

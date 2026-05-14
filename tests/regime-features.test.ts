@@ -2,10 +2,13 @@ import type { DailyRunMetric } from "@/lib/analytics";
 import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
 import {
   buildPredictiveRegimeDays,
+  calculateAtrValues,
   calculateEmaValues,
   calculateRsiValues,
   classifyEmaCross,
   classifyEmaStack,
+  classifyRsiBand,
+  findCrossWithinLookback,
   summarizePredictiveThreshold,
 } from "@/lib/regime-features";
 import { assertApprox, assertEqual } from "@/tests/assert";
@@ -15,6 +18,10 @@ const settings: AnalysisSettings = {
   emaMidPeriod: 3,
   emaSlowPeriod: 5,
   rsiPeriod: 3,
+  atrPeriod: 3,
+  emaCrossLookbackDays: 2,
+  rsiLowerBand: 30,
+  rsiUpperBand: 70,
   updatedAt: null,
 };
 
@@ -28,11 +35,29 @@ assertEqual(rsi[2], null, "RSI waits for enough changes");
 assertEqual(rsi[3], 100, "RSI handles no losses");
 assertApprox(rsi[4] ?? 0, 66.6667, "RSI Wilder smoothing", 0.0001);
 
+const atr = calculateAtrValues([1, 2, 3, 4, 5], 3);
+assertEqual(atr[1], null, "ATR waits for configured warmup");
+assertEqual(atr[2], 2, "ATR uses configured rolling period");
+assertEqual(atr[4], 4, "ATR rolls forward");
+
 assertEqual(classifyEmaStack(3, 2, 1), "bullish", "bullish EMA stack");
 assertEqual(classifyEmaStack(1, 2, 3), "bearish", "bearish EMA stack");
 assertEqual(classifyEmaStack(2, 3, 1), "mixed", "mixed EMA stack");
 assertEqual(classifyEmaCross(1, 2, 3, 2), "cross-up", "EMA cross up");
 assertEqual(classifyEmaCross(3, 2, 1, 2), "cross-down", "EMA cross down");
+assertEqual(classifyRsiBand(25, 30, 70), "below-lower", "RSI lower band");
+assertEqual(classifyRsiBand(50, 30, 70), "mid-band", "RSI mid band");
+assertEqual(classifyRsiBand(75, 30, 70), "above-upper", "RSI upper band");
+assertEqual(
+  findCrossWithinLookback(["none", "cross-up", "none"], 2, 2),
+  "cross-up",
+  "EMA cross lookback includes recent crosses",
+);
+assertEqual(
+  findCrossWithinLookback(["cross-down", "none", "none"], 2, 2),
+  "none",
+  "EMA cross lookback excludes older crosses",
+);
 
 const bars = [
   bar("2026-01-01", 10, 1),
@@ -66,13 +91,14 @@ assertEqual(
 
 const thresholdSummary = summarizePredictiveThreshold(
   predictiveDays,
-  "previousAtr14",
-  3,
+  "previousAtr",
+  2.5,
+  "Previous ATR3",
 );
 
-assertEqual(thresholdSummary.above.count, 2, "ATR above bucket");
+assertEqual(thresholdSummary.above.count, 1, "ATR above bucket");
 assertEqual(thresholdSummary.below.count, 1, "ATR below bucket");
-assertEqual(thresholdSummary.above.totalPnl, 150, "ATR bucket total PnL");
+assertEqual(thresholdSummary.above.totalPnl, 200, "ATR bucket total PnL");
 
 console.log("Regime feature tests passed.");
 
@@ -84,7 +110,7 @@ function bar(tradingDate: string, close: number, atr14: number): MarketBar {
     low: close - 1,
     close,
     volume: 100,
-    trueRange: 2,
+    trueRange: atr14,
     atr14,
     range: 2,
     gap: 0.5,

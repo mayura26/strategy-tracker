@@ -1,18 +1,23 @@
 import type { DailyRunMetric } from "@/lib/analytics";
 
 export type RegimeDiscoveryDay = DailyRunMetric & {
+  atr?: number | null;
   atr14?: number | null;
   range?: number | null;
   gap?: number | null;
+  previousAtr?: number | null;
   previousAtr14?: number | null;
   previousRange?: number | null;
   previousGap?: number | null;
   previousReturn?: number | null;
   previousTrueRange?: number | null;
   previousRsi?: number | null;
+  previousRsiBand?: string | null;
   previousEmaStack?: string | null;
   previousEmaCrossFastMid?: string | null;
   previousEmaCrossMidSlow?: string | null;
+  previousEmaCrossFastMidWithinLookback?: string | null;
+  previousEmaCrossMidSlowWithinLookback?: string | null;
 };
 
 export type ThresholdSuggestion = {
@@ -37,11 +42,11 @@ export type ThresholdSuggestion = {
 };
 
 type NumericField =
-  | "atr14"
+  | "atr"
   | "range"
   | "gap"
   | "absGap"
-  | "previousAtr14"
+  | "previousAtr"
   | "previousRange"
   | "previousGap"
   | "previousAbsGap"
@@ -52,17 +57,28 @@ type NumericField =
 type CategoricalField =
   | "previousEmaStack"
   | "previousEmaCrossFastMid"
-  | "previousEmaCrossMidSlow";
+  | "previousEmaCrossMidSlow"
+  | "previousEmaCrossFastMidWithinLookback"
+  | "previousEmaCrossMidSlowWithinLookback"
+  | "previousRsiBand";
 
 const quantiles = [0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 0.8];
 
 export function discoverRegimeThresholds(
   days: RegimeDiscoveryDay[],
-  options: { minDays?: number; limit?: number } = {},
+  options: {
+    minDays?: number;
+    limit?: number;
+    atrPeriod?: number;
+    emaCrossLookbackDays?: number;
+  } = {},
 ): ThresholdSuggestion[] {
   const minDays =
     options.minDays ?? Math.max(3, Math.floor(days.length * 0.12));
   const limit = options.limit ?? 6;
+  const atrLabel = `ATR${options.atrPeriod ?? 5}`;
+  const previousAtrLabel = `Previous ATR${options.atrPeriod ?? 5}`;
+  const emaLookback = options.emaCrossLookbackDays ?? 5;
   const sortedDays = [...days].sort((left, right) =>
     left.tradingDate.localeCompare(right.tradingDate),
   );
@@ -73,15 +89,15 @@ export function discoverRegimeThresholds(
     ...discoverNumericFeature(
       trainingDays,
       validationDays,
-      "ATR 14",
-      "atr14",
+      atrLabel,
+      "atr",
       minDays,
     ),
     ...discoverNumericFeature(
       trainingDays,
       validationDays,
-      "Previous ATR14",
-      "previousAtr14",
+      previousAtrLabel,
+      "previousAtr",
       minDays,
     ),
     ...discoverNumericFeature(
@@ -157,6 +173,13 @@ export function discoverRegimeThresholds(
     ...discoverCategoricalFeature(
       trainingDays,
       validationDays,
+      "Previous RSI band",
+      "previousRsiBand",
+      minDays,
+    ),
+    ...discoverCategoricalFeature(
+      trainingDays,
+      validationDays,
       "EMA fast/mid cross",
       "previousEmaCrossFastMid",
       minDays,
@@ -166,6 +189,20 @@ export function discoverRegimeThresholds(
       validationDays,
       "EMA mid/slow cross",
       "previousEmaCrossMidSlow",
+      minDays,
+    ),
+    ...discoverCategoricalFeature(
+      trainingDays,
+      validationDays,
+      `EMA fast/mid cross within ${emaLookback} sessions`,
+      "previousEmaCrossFastMidWithinLookback",
+      minDays,
+    ),
+    ...discoverCategoricalFeature(
+      trainingDays,
+      validationDays,
+      `EMA mid/slow cross within ${emaLookback} sessions`,
+      "previousEmaCrossMidSlowWithinLookback",
       minDays,
     ),
   ];
@@ -404,6 +441,14 @@ function evaluateCategory(
 }
 
 function valueFor(day: RegimeDiscoveryDay, field: NumericField) {
+  if (field === "atr") {
+    return day.atr ?? day.atr14 ?? null;
+  }
+
+  if (field === "previousAtr") {
+    return day.previousAtr ?? day.previousAtr14 ?? null;
+  }
+
   if (field === "absGap") {
     return day.gap === null || day.gap === undefined ? null : Math.abs(day.gap);
   }
