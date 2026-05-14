@@ -8,7 +8,7 @@ Last updated: 2026-05-13
 - Auth.js credentials login using `STRATEGY_TRACKER_PASSWORD`; local dev fallback password is `strategy`.
 - `proxy.ts` route protection plus server-side auth checks in mutations.
 - Turso/libSQL database layer using `@libsql/client`; falls back to `strategy-tracker.local.db` when Turso env vars are absent.
-- Runtime SQLite schema initialization for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, combos, and combo versions.
+- Runtime SQLite schema initialization plus Drizzle migration config/baseline for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, combos, and combo versions.
 - Curated bot, bot-mode, and instrument management under `/settings`; imports select bot, mode, and instrument from dropdowns.
 - NinjaTrader Strategy Analyzer summary CSV parser for the example export in `examples/`.
 - Import form for missing metadata: bot, bot mode, instrument, run name, timeframe, settings JSON, tags, notes.
@@ -33,7 +33,7 @@ Last updated: 2026-05-13
 
 ## Partially Implemented Or Deferred
 
-- Drizzle ORM schema definitions exist, but there is no Drizzle migration CLI workflow yet; schema is currently initialized at runtime.
+- Runtime schema initialization remains as a compatibility safety net while migrations are introduced.
 - CSV imports now preview before saving, but there is no stored reprocess workflow for old imports yet.
 - Instruments must be created in settings before import; session start hour and Yahoo symbol are stored per instrument.
 - Regime discovery is currently heuristic; it proposes ranked thresholds with chronological validation, but does not yet train ML models.
@@ -48,6 +48,8 @@ npm run test
 npm run lint
 npm run build
 npm run backup:db
+npm run db:generate
+npm run db:migrate
 ```
 
 ## Required Environment
@@ -68,6 +70,5 @@ If `BACKUP_DIR` is absent, backups are written to `./backups`, which is also ign
 ## Recommended Next Steps
 
 1. Add zoom/brush and richer tooltips to comparison charts if the custom primitives become too limited.
-2. Add Drizzle migration scripts so Turso schema changes are explicit and reproducible.
-3. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
-4. Add richer ML-style validation for discovered ATR/range/gap thresholds.
+2. Add Playwright tests for the core workflow: login, create bot/mode/instrument, upload sample CSV, pin golden, compare, and build a combo.
+3. Add richer ML-style validation for discovered ATR/range/gap thresholds.

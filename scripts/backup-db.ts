@@ -13,6 +13,7 @@ const tables = [
   "golden_baselines",
   "market_bars",
   "combos",
+  "combo_versions",
 ] as const;
 
 const databaseUrl =

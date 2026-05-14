@@ -9,6 +9,8 @@
     "lint": "biome check",
     "test": "tsx tests/run-tests.ts",
     "backup:db": "tsx scripts/backup-db.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "format": "biome format --write"
   },
   "dependencies": {
@@ -29,6 +31,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
