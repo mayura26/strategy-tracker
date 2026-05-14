@@ -26,7 +26,7 @@ Last updated: 2026-05-13
 - Run detail golden daily drilldown with overlap coverage, filters, outperformance thresholds, visual PnL overlay, delta histogram, and collapsible day table.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
 - Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, contribution days, and version history snapshots.
-- Visual comparison workspace with scoped run selection, overlap-only or union date handling, core metric bars, outperformance-vs counts with material-delta filtering, CSV exports for visible/material day lists, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, and daily/session box and dot plots.
+- Visual comparison workspace with scoped run selection, overlap-only or union date handling, selectable full-run vs selected-period core metric bars, outperformance-vs counts with material-delta filtering, CSV exports for visible/material day lists, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, and daily/session box and dot plots.
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, outperformance summaries, overlap/union daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`; the Next.js app now stores compatible job snapshots and local heuristic results.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.

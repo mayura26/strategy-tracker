@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import {
+  type AlignedDay,
   type AlignmentMode,
   alignDailyPnL,
   buildHistogram,
@@ -186,7 +187,15 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
         </label>
       </section>
 
-      <MetricBarComparison runs={group.runs} />
+      <MetricBarComparison
+        fullRuns={group.runs}
+        periodLabel={
+          alignmentMode === "overlap"
+            ? "Selected overlap period"
+            : "Selected union period"
+        }
+        periodRuns={scopedRuns}
+      />
 
       <OutperformanceVersus
         candidateName={candidate.name}
@@ -289,27 +298,43 @@ function buildScopedDailyRuns(
   days: ReturnType<typeof alignDailyPnL>,
 ): ComparisonRun[] {
   return [
-    {
-      ...golden,
-      dailyMetrics: days.map((day) =>
-        dailyMetricFromAligned(
-          day.tradingDate,
-          day.goldenPnl,
-          day.goldenTrades,
-        ),
-      ),
-    },
-    {
-      ...candidate,
-      dailyMetrics: days.map((day) =>
-        dailyMetricFromAligned(
-          day.tradingDate,
-          day.candidatePnl,
-          day.candidateTrades,
-        ),
-      ),
-    },
+    buildPeriodComparisonRun(golden, days, "golden"),
+    buildPeriodComparisonRun(candidate, days, "candidate"),
   ];
+}
+
+function buildPeriodComparisonRun(
+  run: ComparisonRun,
+  days: AlignedDay[],
+  side: "golden" | "candidate",
+): ComparisonRun {
+  const dailyMetrics = days.map((day) =>
+    dailyMetricFromAligned(
+      day.tradingDate,
+      side === "golden" ? day.goldenPnl : day.candidatePnl,
+      side === "golden" ? day.goldenTrades : day.candidateTrades,
+    ),
+  );
+  const values = dailyMetrics.map((day) => day.netProfit);
+  const netProfit = values.reduce((sum, value) => sum + value, 0);
+  const positiveValues = values.filter((value) => value > 0);
+  const negativeValues = values.filter((value) => value < 0);
+  const grossProfit = positiveValues.reduce((sum, value) => sum + value, 0);
+  const grossLoss = Math.abs(
+    negativeValues.reduce((sum, value) => sum + value, 0),
+  );
+
+  return {
+    ...run,
+    dailyMetrics,
+    expectancy: values.length === 0 ? 0 : netProfit / values.length,
+    maxDrawdown: calculateDailyDrawdown(values),
+    netProfit,
+    profitFactor:
+      grossLoss === 0 ? (grossProfit > 0 ? null : 0) : grossProfit / grossLoss,
+    tradeCount: dailyMetrics.length,
+    winRate: values.length === 0 ? 0 : positiveValues.length / values.length,
+  };
 }
 
 function dailyMetricFromAligned(
@@ -330,6 +355,20 @@ function dailyMetricFromAligned(
     avgMae: null,
     avgMfe: null,
   };
+}
+
+function calculateDailyDrawdown(values: number[]) {
+  let equity = 0;
+  let peak = 0;
+  let maxDrawdown = 0;
+
+  for (const value of values) {
+    equity += value;
+    peak = Math.max(peak, equity);
+    maxDrawdown = Math.min(maxDrawdown, equity - peak);
+  }
+
+  return maxDrawdown;
 }
 
 function formatCoverage(run: {
@@ -850,7 +889,19 @@ function Metric({
   );
 }
 
-function MetricBarComparison({ runs }: { runs: ComparisonRun[] }) {
+function MetricBarComparison({
+  fullRuns,
+  periodRuns,
+  periodLabel,
+}: {
+  fullRuns: ComparisonRun[];
+  periodRuns: ComparisonRun[];
+  periodLabel: string;
+}) {
+  const [metricBasis, setMetricBasis] = useState<"period" | "full">("period");
+  const runs = metricBasis === "period" ? periodRuns : fullRuns;
+  const tradeLabel = metricBasis === "period" ? "Sessions" : "Trades";
+  const winLabel = metricBasis === "period" ? "Win day rate" : "Win rate";
   const metrics = [
     {
       label: "Net PnL",
@@ -865,7 +916,7 @@ function MetricBarComparison({ runs }: { runs: ComparisonRun[] }) {
       higherIsBetter: false,
     },
     {
-      label: "Win rate",
+      label: winLabel,
       getValue: (run: ComparisonRun) => run.winRate,
       format: formatPercent,
       higherIsBetter: true,
@@ -883,7 +934,7 @@ function MetricBarComparison({ runs }: { runs: ComparisonRun[] }) {
       higherIsBetter: true,
     },
     {
-      label: "Trades",
+      label: tradeLabel,
       getValue: (run: ComparisonRun) => run.tradeCount,
       format: (value: number) => formatNumber(value, 0),
       higherIsBetter: true,
@@ -896,11 +947,36 @@ function MetricBarComparison({ runs }: { runs: ComparisonRun[] }) {
         <div>
           <h2>Core metric bars</h2>
           <p>
-            Fast read on headline quality before checking distribution shape.
+            {metricBasis === "period"
+              ? `${periodLabel}: metrics are rebuilt from aligned daily PnL.`
+              : "Full imported run metrics, regardless of date overlap."}
           </p>
         </div>
-        <SlidersHorizontal aria-hidden className="quiet-text" size={20} />
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="grid gap-1">
+            <span className="quiet-text text-xs font-semibold uppercase">
+              Metric basis
+            </span>
+            <select
+              className="input min-h-10"
+              onChange={(event) =>
+                setMetricBasis(event.target.value as "period" | "full")
+              }
+              value={metricBasis}
+            >
+              <option value="period">Selected period</option>
+              <option value="full">Full imported runs</option>
+            </select>
+          </label>
+          <SlidersHorizontal aria-hidden className="quiet-text" size={20} />
+        </div>
       </div>
+      {metricBasis === "period" ? (
+        <p className="quiet-text mb-4 rounded-sm border border-sky-400/20 bg-sky-400/10 px-3 py-2 text-sm">
+          Showing only the selected golden/candidate pair because period metrics
+          depend on the current date handling.
+        </p>
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-2">
         {metrics.map((metric) => {
           const values = runs.map(metric.getValue);
