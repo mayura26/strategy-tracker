@@ -2,12 +2,15 @@ import {
   alignDailyPnL,
   buildHistogram,
   countSingleRunDays,
+  evaluateModeSwitchRule,
+  evaluateSwitchCondition,
   filterAlignedDays,
   sortAlignedDaysNewestFirst,
   summarizeDistribution,
   summarizeOutcomes,
   summarizeOutperformance,
 } from "@/lib/comparison-analytics";
+import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
 import { assertApprox, assertEqual } from "@/tests/assert";
 
 const distribution = summarizeDistribution([
@@ -131,6 +134,90 @@ assertEqual(
   "hide similar threshold",
 );
 
+const switchSettings: AnalysisSettings = {
+  atrPeriod: 2,
+  emaCrossLookbackDays: 2,
+  emaFastPeriod: 2,
+  emaMidPeriod: 3,
+  emaSlowPeriod: 5,
+  rsiLowerBand: 30,
+  rsiPeriod: 2,
+  rsiUpperBand: 70,
+  updatedAt: null,
+};
+const switchEvaluation = evaluateModeSwitchRule({
+  marketBars: [
+    bar("2026-02-01", 10),
+    bar("2026-02-02", 11),
+    bar("2026-02-03", 12),
+    bar("2026-02-04", 11),
+    bar("2026-02-05", 10),
+  ],
+  modeADays: [
+    day("2026-02-04", 400, 2),
+    day("2026-02-05", -200, 2),
+    day("2026-02-06", -100, 1),
+    day("2026-02-07", 999, 1),
+  ],
+  modeBDays: [
+    day("2026-02-04", -50, 1),
+    day("2026-02-05", 150, 1),
+    day("2026-02-06", 50, 1),
+  ],
+  rule: {
+    operator: "gt",
+    threshold: 70,
+  },
+  settings: switchSettings,
+});
+
+assertEqual(
+  evaluateSwitchCondition(70, { operator: "gt", threshold: 70 }),
+  false,
+  "strict greater switch condition",
+);
+assertEqual(
+  evaluateSwitchCondition(70, { operator: "gte", threshold: 70 }),
+  true,
+  "inclusive greater switch condition",
+);
+assertEqual(switchEvaluation.days.length, 3, "switch overlap with RSI signal");
+assertEqual(
+  switchEvaluation.summary.comparedOverlapDays,
+  3,
+  "switch excludes non-overlap dates",
+);
+assertEqual(
+  switchEvaluation.days[0].selectedMode,
+  "mode-a",
+  "RSI threshold true selects mode A",
+);
+assertEqual(
+  switchEvaluation.days[1].selectedMode,
+  "mode-b",
+  "RSI threshold false selects mode B",
+);
+assertEqual(
+  switchEvaluation.days[1].switchedPnl,
+  150,
+  "non-selected mode contributes zero by using only selected mode PnL",
+);
+assertEqual(switchEvaluation.summary.totalPnl, 600, "switch total PnL");
+assertEqual(switchEvaluation.summary.modeADays, 1, "mode A routed days");
+assertEqual(switchEvaluation.summary.modeBDays, 2, "mode B routed days");
+assertEqual(
+  switchEvaluation.summary.avoidedLossModeA,
+  2,
+  "mode A losses avoided while mode B selected",
+);
+assertEqual(
+  switchEvaluation.summary.avoidedLossModeB,
+  1,
+  "mode B loss avoided while mode A selected",
+);
+assertEqual(switchEvaluation.summary.alwaysA.totalPnl, 100, "always A PnL");
+assertEqual(switchEvaluation.summary.alwaysB.totalPnl, 150, "always B PnL");
+
 console.log("Comparison analytics tests passed.");
 
 function day(tradingDate: string, netProfit: number, tradeCount: number) {
@@ -146,5 +233,21 @@ function day(tradingDate: string, netProfit: number, tradeCount: number) {
     worstTrade: netProfit,
     avgMae: null,
     avgMfe: null,
+  };
+}
+
+function bar(tradingDate: string, close: number): MarketBar {
+  return {
+    atr14: 2,
+    close,
+    gap: 0,
+    high: close + 1,
+    low: close - 1,
+    open: close - 0.25,
+    range: 2,
+    sourceStatus: "ok",
+    tradingDate,
+    trueRange: 2,
+    volume: 100,
   };
 }

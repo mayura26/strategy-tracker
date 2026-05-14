@@ -1,4 +1,6 @@
 import type { DailyRunMetric } from "@/lib/analytics";
+import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
+import { buildPredictiveRegimeDays } from "@/lib/regime-features";
 
 export type DistributionSummary = {
   count: number;
@@ -64,6 +66,55 @@ export type OutperformanceSummary = {
   goldenTotalDelta: number;
   biggestCandidateBeat: number | null;
   biggestGoldenBeat: number | null;
+};
+
+export type ModeSwitchOperator = "gt" | "gte" | "lt" | "lte";
+
+export type ModeSwitchRule = {
+  operator: ModeSwitchOperator;
+  threshold: number;
+};
+
+export type ModeSwitchDay = {
+  tradingDate: string;
+  previousRsi: number;
+  modeAPnl: number;
+  modeBPnl: number;
+  modeATrades: number;
+  modeBTrades: number;
+  selectedMode: "mode-a" | "mode-b";
+  switchedPnl: number;
+  bestAvailablePnl: number;
+  opportunityCost: number;
+};
+
+export type ModeSwitchMetrics = {
+  totalPnl: number;
+  maxDrawdown: number;
+  winDayRate: number;
+  expectancy: number;
+  greenDays: number;
+  redDays: number;
+  flatDays: number;
+};
+
+export type ModeSwitchSummary = ModeSwitchMetrics & {
+  totalDays: number;
+  modeADays: number;
+  modeBDays: number;
+  comparedOverlapDays: number;
+  excludedNoSignalDays: number;
+  avoidedLossModeA: number;
+  avoidedLossModeB: number;
+  missedWinModeA: number;
+  missedWinModeB: number;
+  alwaysA: ModeSwitchMetrics;
+  alwaysB: ModeSwitchMetrics;
+};
+
+export type ModeSwitchEvaluation = {
+  days: ModeSwitchDay[];
+  summary: ModeSwitchSummary;
 };
 
 export function summarizeDistribution(values: number[]): DistributionSummary {
@@ -207,6 +258,76 @@ export function summarizeOutperformance(
   };
 }
 
+export function evaluateModeSwitchRule({
+  modeADays,
+  modeBDays,
+  marketBars,
+  settings,
+  rule,
+}: {
+  modeADays: DailyRunMetric[];
+  modeBDays: DailyRunMetric[];
+  marketBars: MarketBar[];
+  settings: AnalysisSettings;
+  rule: ModeSwitchRule;
+}): ModeSwitchEvaluation {
+  const overlapDays = alignDailyPnL(modeADays, modeBDays, "overlap");
+  const predictiveByDate = new Map(
+    buildPredictiveRegimeDays(modeADays, marketBars, settings).map((day) => [
+      day.tradingDate,
+      day,
+    ]),
+  );
+  const days = overlapDays
+    .map((day): ModeSwitchDay | null => {
+      const predictiveDay = predictiveByDate.get(day.tradingDate);
+      const previousRsi = predictiveDay?.previousRsi;
+
+      if (previousRsi === null || previousRsi === undefined) {
+        return null;
+      }
+
+      const selectsModeA = evaluateSwitchCondition(previousRsi, rule);
+      const switchedPnl = selectsModeA ? day.goldenPnl : day.candidatePnl;
+      const bestAvailablePnl = Math.max(day.goldenPnl, day.candidatePnl);
+
+      return {
+        bestAvailablePnl,
+        modeAPnl: day.goldenPnl,
+        modeATrades: day.goldenTrades,
+        modeBPnl: day.candidatePnl,
+        modeBTrades: day.candidateTrades,
+        opportunityCost: bestAvailablePnl - switchedPnl,
+        previousRsi,
+        selectedMode: selectsModeA ? "mode-a" : "mode-b",
+        switchedPnl,
+        tradingDate: day.tradingDate,
+      };
+    })
+    .filter((day): day is ModeSwitchDay => day !== null);
+
+  return {
+    days,
+    summary: summarizeModeSwitchDays(days, overlapDays.length),
+  };
+}
+
+export function evaluateSwitchCondition(value: number, rule: ModeSwitchRule) {
+  if (rule.operator === "gt") {
+    return value > rule.threshold;
+  }
+
+  if (rule.operator === "gte") {
+    return value >= rule.threshold;
+  }
+
+  if (rule.operator === "lt") {
+    return value < rule.threshold;
+  }
+
+  return value <= rule.threshold;
+}
+
 export function alignDailyPnL(
   goldenDays: DailyRunMetric[],
   candidateDays: DailyRunMetric[],
@@ -240,6 +361,69 @@ export function alignDailyPnL(
       candidateTrades: candidate?.tradeCount ?? 0,
     };
   });
+}
+
+function summarizeModeSwitchDays(
+  days: ModeSwitchDay[],
+  comparedOverlapDays: number,
+): ModeSwitchSummary {
+  const switchedValues = days.map((day) => day.switchedPnl);
+  const modeAValues = days.map((day) => day.modeAPnl);
+  const modeBValues = days.map((day) => day.modeBPnl);
+
+  return {
+    ...metricsFromValues(switchedValues),
+    alwaysA: metricsFromValues(modeAValues),
+    alwaysB: metricsFromValues(modeBValues),
+    avoidedLossModeA: days.filter(
+      (day) => day.selectedMode === "mode-b" && day.modeAPnl < 0,
+    ).length,
+    avoidedLossModeB: days.filter(
+      (day) => day.selectedMode === "mode-a" && day.modeBPnl < 0,
+    ).length,
+    comparedOverlapDays,
+    excludedNoSignalDays: comparedOverlapDays - days.length,
+    missedWinModeA: days.filter(
+      (day) => day.selectedMode === "mode-b" && day.modeAPnl > 0,
+    ).length,
+    missedWinModeB: days.filter(
+      (day) => day.selectedMode === "mode-a" && day.modeBPnl > 0,
+    ).length,
+    modeADays: days.filter((day) => day.selectedMode === "mode-a").length,
+    modeBDays: days.filter((day) => day.selectedMode === "mode-b").length,
+    totalDays: days.length,
+  };
+}
+
+function metricsFromValues(values: number[]): ModeSwitchMetrics {
+  const outcomes = summarizeOutcomes(values);
+
+  return {
+    expectancy:
+      values.length === 0
+        ? 0
+        : values.reduce((sum, value) => sum + value, 0) / values.length,
+    flatDays: outcomes.flatDays,
+    greenDays: outcomes.greenDays,
+    maxDrawdown: calculateDrawdown(values),
+    redDays: outcomes.redDays,
+    totalPnl: outcomes.totalPnl,
+    winDayRate: outcomes.greenRate,
+  };
+}
+
+function calculateDrawdown(values: number[]) {
+  let equity = 0;
+  let peak = 0;
+  let maxDrawdown = 0;
+
+  for (const value of values) {
+    equity += value;
+    peak = Math.max(peak, equity);
+    maxDrawdown = Math.min(maxDrawdown, equity - peak);
+  }
+
+  return maxDrawdown;
 }
 
 export function filterAlignedDays(

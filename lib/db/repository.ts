@@ -4,6 +4,8 @@ import type { NormalizedTradeSummary } from "@/lib/imports/ninjatrader";
 
 export type RunSummary = {
   id: string;
+  botId: string;
+  instrumentId: string;
   name: string;
   botName: string;
   botModeName: string | null;
@@ -95,6 +97,10 @@ export type ComparisonRun = RunSummary & {
 
 export type ComparisonGroup = {
   scope: string;
+  botName: string;
+  instrumentSymbol: string;
+  timeframe: string;
+  marketBars: MarketBar[];
   runs: ComparisonRun[];
 };
 
@@ -778,17 +784,29 @@ export async function listComparisonGroups(): Promise<ComparisonGroup[]> {
   }
 
   const groups = runDetails.reduce((map, run) => {
-    const scope = `${run.botName} / ${run.botModeName ?? "No mode"} / ${run.instrumentSymbol} / ${run.timeframe}`;
+    const scope = `${run.botName} / ${run.instrumentSymbol} / ${run.timeframe}`;
     const scopedRuns = map.get(scope) ?? [];
     scopedRuns.push(run);
     map.set(scope, scopedRuns);
     return map;
   }, new Map<string, ComparisonRun[]>());
 
-  return [...groups.entries()].map(([scope, scopedRuns]) => ({
-    scope,
-    runs: scopedRuns,
-  }));
+  const comparisonGroups: ComparisonGroup[] = [];
+
+  for (const [scope, scopedRuns] of groups.entries()) {
+    const firstRun = scopedRuns[0];
+
+    comparisonGroups.push({
+      botName: firstRun.botName,
+      instrumentSymbol: firstRun.instrumentSymbol,
+      marketBars: await listMarketBarsForInstrument(firstRun.instrumentId),
+      runs: scopedRuns,
+      scope,
+      timeframe: firstRun.timeframe,
+    });
+  }
+
+  return comparisonGroups;
 }
 
 export async function saveCombo(input: {
@@ -1458,6 +1476,8 @@ async function listDailyMetricsForRun(
 function mapRunSummary(row: Record<string, unknown>): RunSummary {
   return {
     id: String(row.id),
+    botId: String(row.bot_id),
+    instrumentId: String(row.instrument_id),
     name: String(row.name),
     botName: String(row.bot_name),
     botModeName: stringOrNull(row.bot_mode_name),

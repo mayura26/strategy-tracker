@@ -8,6 +8,7 @@ import {
   type PredictiveBucketSummary,
   type PredictiveRegimeDay,
   summarizePredictiveCategory,
+  summarizePredictiveRsiBands,
   summarizePredictiveThreshold,
 } from "@/lib/regime-features";
 
@@ -36,7 +37,10 @@ export function RegimeDiscoveryWorkbench({
   const [atrThreshold, setAtrThreshold] = useState(
     Number(defaultAtr.toFixed(2)),
   );
-  const [rsiThreshold, setRsiThreshold] = useState(50);
+  const [rsiBand, setRsiBand] = useState(
+    Math.max(0, Math.min(rsiLowerBand, 100 - rsiUpperBand, 49)),
+  );
+  const rsiUpper = 100 - rsiBand;
   const atrSummary = useMemo(
     () =>
       summarizePredictiveThreshold(
@@ -47,16 +51,12 @@ export function RegimeDiscoveryWorkbench({
       ),
     [days, atrThreshold, atrPeriod],
   );
-  const rsiSummary = useMemo(
-    () => summarizePredictiveThreshold(days, "previousRsi", rsiThreshold),
-    [days, rsiThreshold],
+  const rsiBandSummary = useMemo(
+    () => summarizePredictiveRsiBands(days, rsiBand),
+    [days, rsiBand],
   );
   const stackSummary = useMemo(
     () => summarizePredictiveCategory(days, "previousEmaStack"),
-    [days],
-  );
-  const rsiBandSummary = useMemo(
-    () => summarizePredictiveCategory(days, "previousRsiBand"),
     [days],
   );
   const fastMidCrossSummary = useMemo(
@@ -105,21 +105,17 @@ export function RegimeDiscoveryWorkbench({
           summary={[atrSummary.above, atrSummary.below]}
           value={atrThreshold}
         />
-        <ThresholdPanel
-          label={`Previous RSI${rsiPeriod}`}
-          onChange={setRsiThreshold}
-          step="1"
-          summary={[rsiSummary.above, rsiSummary.below]}
-          value={rsiThreshold}
+        <RsiBandPanel
+          lowerBand={rsiBand}
+          onChange={setRsiBand}
+          rsiPeriod={rsiPeriod}
+          summary={rsiBandSummary}
+          upperBand={rsiUpper}
         />
       </div>
 
       <section className="mt-5 grid gap-4 xl:grid-cols-3">
         <CategoryPanel title="Previous EMA stack" rows={stackSummary} />
-        <CategoryPanel
-          title={`Previous RSI band ${rsiLowerBand}/${rsiUpperBand}`}
-          rows={rsiBandSummary}
-        />
         <CategoryPanel title="Fast / mid cross" rows={fastMidCrossSummary} />
         <CategoryPanel title="Mid / slow cross" rows={midSlowCrossSummary} />
         <CategoryPanel
@@ -160,6 +156,48 @@ function ThresholdPanel({
           value={value}
         />
       </label>
+      <div className="mt-4 grid gap-3">
+        {summary.map((row) => (
+          <SummaryRow key={row.label} row={row} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RsiBandPanel({
+  lowerBand,
+  upperBand,
+  rsiPeriod,
+  summary,
+  onChange,
+}: {
+  lowerBand: number;
+  upperBand: number;
+  rsiPeriod: number;
+  summary: PredictiveBucketSummary[];
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="subtle-card p-4">
+      <label className="grid gap-2">
+        <span className="label-text">Previous RSI{rsiPeriod} band</span>
+        <input
+          className="input"
+          max="49"
+          min="0"
+          onChange={(event) =>
+            onChange(Math.max(0, Math.min(Number(event.target.value), 49)))
+          }
+          step="1"
+          type="number"
+          value={lowerBand}
+        />
+      </label>
+      <p className="quiet-text mt-2 text-xs">
+        Band {lowerBand} creates RSI &lt; {lowerBand}, {lowerBand}-{upperBand},
+        and RSI &gt; {upperBand}.
+      </p>
       <div className="mt-4 grid gap-3">
         {summary.map((row) => (
           <SummaryRow key={row.label} row={row} />

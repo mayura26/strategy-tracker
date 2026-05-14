@@ -16,12 +16,20 @@ import {
   alignDailyPnL,
   buildHistogram,
   type DayBucket,
+  evaluateModeSwitchRule,
   filterAlignedDays,
+  type ModeSwitchDay,
+  type ModeSwitchMetrics,
+  type ModeSwitchOperator,
   summarizeDistribution,
   summarizeOutcomes,
   summarizeOutperformance,
 } from "@/lib/comparison-analytics";
-import type { ComparisonGroup, ComparisonRun } from "@/lib/db/repository";
+import type {
+  AnalysisSettings,
+  ComparisonGroup,
+  ComparisonRun,
+} from "@/lib/db/repository";
 import {
   formatCurrency,
   formatNumber,
@@ -31,27 +39,41 @@ import {
 
 const dayBuckets: Array<{ value: DayBucket; label: string }> = [
   { value: "all", label: "All" },
-  { value: "candidate-wins", label: "Candidate beats" },
-  { value: "golden-wins", label: "Golden beats" },
+  { value: "candidate-wins", label: "Mode B beats" },
+  { value: "golden-wins", label: "Mode A beats" },
   { value: "both-win", label: "Both win" },
   { value: "both-loss", label: "Both loss" },
   { value: "disagreement", label: "Disagree" },
 ];
 
-export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
+export function ComparisonWorkbench({
+  groups,
+  analysisSettings,
+}: {
+  groups: ComparisonGroup[];
+  analysisSettings: AnalysisSettings;
+}) {
   const [groupIndex, setGroupIndex] = useState(0);
   const group = groups[groupIndex] ?? groups[0];
-  const golden = group?.runs.find((run) => run.isGolden) ?? group?.runs[0];
-  const [candidateIdByGroup, setCandidateIdByGroup] = useState<
-    Record<string, string>
-  >({});
+  const defaultModeA =
+    group?.runs.find((run) => run.isGolden) ?? group?.runs[0];
+  const [modeAIdByGroup, setModeAIdByGroup] = useState<Record<string, string>>(
+    {},
+  );
+  const [modeBIdByGroup, setModeBIdByGroup] = useState<Record<string, string>>(
+    {},
+  );
   const [bucket, setBucket] = useState<DayBucket>("all");
   const [hideSimilar, setHideSimilar] = useState(true);
   const [similarThreshold, setSimilarThreshold] = useState(50);
   const [outperformanceThreshold, setOutperformanceThreshold] = useState(100);
   const [alignmentMode, setAlignmentMode] = useState<AlignmentMode>("overlap");
+  const groupScope = group?.scope ?? "";
+  const golden =
+    group?.runs.find((run) => run.id === modeAIdByGroup[groupScope]) ??
+    defaultModeA;
   const candidate =
-    group?.runs.find((run) => run.id === candidateIdByGroup[group.scope]) ??
+    group?.runs.find((run) => run.id === modeBIdByGroup[groupScope]) ??
     group?.runs.find((run) => run.id !== golden?.id) ??
     golden;
   const alignedDays = useMemo(
@@ -122,18 +144,42 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
           </select>
         </label>
         <div className="grid gap-2">
-          <span className="label-text">Golden</span>
-          <Link className="ghost-button" href={`/runs/${golden.id}`}>
-            {golden.name}
-          </Link>
+          <span className="label-text">Mode A</span>
+          <select
+            className="input"
+            onChange={(event) => {
+              const nextModeAId = event.target.value;
+              setModeAIdByGroup((current) => ({
+                ...current,
+                [group.scope]: nextModeAId,
+              }));
+
+              if (nextModeAId === candidate.id) {
+                const nextModeB = group.runs.find(
+                  (run) => run.id !== nextModeAId,
+                );
+                setModeBIdByGroup((current) => ({
+                  ...current,
+                  [group.scope]: nextModeB?.id ?? nextModeAId,
+                }));
+              }
+            }}
+            value={golden.id}
+          >
+            {group.runs.map((run) => (
+              <option key={run.id} value={run.id}>
+                {run.name} / {run.botModeName ?? "No mode"}
+              </option>
+            ))}
+          </select>
           <span className="quiet-text text-xs">{formatCoverage(golden)}</span>
         </div>
         <label className="grid gap-2">
-          <span className="label-text">Candidate</span>
+          <span className="label-text">Mode B</span>
           <select
             className="input"
             onChange={(event) =>
-              setCandidateIdByGroup((current) => ({
+              setModeBIdByGroup((current) => ({
                 ...current,
                 [group.scope]: event.target.value,
               }))
@@ -142,7 +188,7 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
           >
             {group.runs.map((run) => (
               <option key={run.id} value={run.id}>
-                {run.name} ({formatCoverage(run)})
+                {run.name} / {run.botModeName ?? "No mode"}
               </option>
             ))}
           </select>
@@ -157,15 +203,15 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
           <h2 className="strong-text text-base font-bold">Comparison period</h2>
           <p className="quiet-text mt-1 text-sm">
             {alignmentMode === "overlap"
-              ? `${alignedDays.length} shared trading days are included. ${countSingleRunDays(unionAlignedDays, "golden")} golden-only and ${countSingleRunDays(unionAlignedDays, "candidate")} candidate-only days are excluded.`
+              ? `${alignedDays.length} shared trading days are included. ${countSingleRunDays(unionAlignedDays, "golden")} Mode A-only and ${countSingleRunDays(unionAlignedDays, "candidate")} Mode B-only days are excluded.`
               : `${alignedDays.length} union trading days are included, with missing run days treated as zero PnL.`}
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
             <span className="rounded-sm border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-amber-200">
-              Golden {formatCoverage(golden)}
+              Mode A {formatCoverage(golden)}
             </span>
             <span className="rounded-sm border border-sky-400/25 bg-sky-400/10 px-2 py-1 text-sky-200">
-              Candidate {formatCoverage(candidate)}
+              Mode B {formatCoverage(candidate)}
             </span>
             <span className="rounded-sm border border-teal-400/25 bg-teal-400/10 px-2 py-1 text-teal-200">
               Compared {formatAlignedRange(alignedDays)}
@@ -195,6 +241,13 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
             : "Selected union period"
         }
         periodRuns={scopedRuns}
+      />
+
+      <ModeSwitchLab
+        analysisSettings={analysisSettings}
+        marketBars={group.marketBars}
+        modeA={golden}
+        modeB={candidate}
       />
 
       <OutperformanceVersus
@@ -399,6 +452,474 @@ function countSingleRunDays(
       ? day.goldenTrades > 0 && day.candidateTrades === 0
       : day.candidateTrades > 0 && day.goldenTrades === 0,
   ).length;
+}
+
+function ModeSwitchLab({
+  modeA,
+  modeB,
+  marketBars,
+  analysisSettings,
+}: {
+  modeA: ComparisonRun;
+  modeB: ComparisonRun;
+  marketBars: ComparisonGroup["marketBars"];
+  analysisSettings: AnalysisSettings;
+}) {
+  const [operator, setOperator] = useState<ModeSwitchOperator>("gt");
+  const [threshold, setThreshold] = useState(analysisSettings.rsiUpperBand);
+  const evaluation = useMemo(
+    () =>
+      evaluateModeSwitchRule({
+        marketBars,
+        modeADays: modeA.dailyMetrics,
+        modeBDays: modeB.dailyMetrics,
+        rule: { operator, threshold },
+        settings: analysisSettings,
+      }),
+    [modeA, modeB, marketBars, analysisSettings, operator, threshold],
+  );
+  const ruleText = `Previous RSI${analysisSettings.rsiPeriod} ${operatorLabel(
+    operator,
+  )} ${threshold}`;
+
+  return (
+    <section className="panel">
+      <div className="section-title">
+        <div>
+          <h2>Mode switch lab</h2>
+          <p>
+            {ruleText} routes to Mode A; otherwise Mode B. The unselected mode
+            is treated as zero exposure.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[120px_140px]">
+          <label className="grid gap-1">
+            <span className="label-text">Condition</span>
+            <select
+              className="input min-h-10"
+              onChange={(event) =>
+                setOperator(event.target.value as ModeSwitchOperator)
+              }
+              value={operator}
+            >
+              <option value="gt">&gt;</option>
+              <option value="gte">&gt;=</option>
+              <option value="lt">&lt;</option>
+              <option value="lte">&lt;=</option>
+            </select>
+          </label>
+          <label className="grid gap-1">
+            <span className="label-text">RSI threshold</span>
+            <input
+              className="input min-h-10"
+              max="100"
+              min="0"
+              onChange={(event) => setThreshold(Number(event.target.value))}
+              step="1"
+              type="number"
+              value={threshold}
+            />
+          </label>
+        </div>
+      </div>
+
+      {evaluation.days.length === 0 ? (
+        <div className="empty-state">
+          Refresh market data, check RSI warmup, or choose runs with overlapping
+          dates to unlock switch simulation.
+        </div>
+      ) : (
+        <div className="grid gap-5">
+          <div className="flex flex-wrap gap-2 text-xs font-semibold">
+            <span className="rounded-sm border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-amber-200">
+              Mode A: {modeA.name}
+            </span>
+            <span className="rounded-sm border border-sky-400/25 bg-sky-400/10 px-2 py-1 text-sky-200">
+              Mode B: {modeB.name}
+            </span>
+            <span className="rounded-sm border border-teal-400/25 bg-teal-400/10 px-2 py-1 text-teal-200">
+              {evaluation.summary.totalDays} routed days
+            </span>
+            <span className="rounded-sm border border-slate-700 bg-slate-900 px-2 py-1 text-slate-300">
+              {evaluation.summary.excludedNoSignalDays} excluded for no prior
+              RSI
+            </span>
+          </div>
+
+          <div className="metric-grid">
+            <Metric
+              label="Switched PnL"
+              tone={evaluation.summary.totalPnl}
+              value={formatCurrency(evaluation.summary.totalPnl)}
+            />
+            <Metric
+              label="Switched drawdown"
+              tone={evaluation.summary.maxDrawdown}
+              value={formatCurrency(evaluation.summary.maxDrawdown)}
+            />
+            <Metric
+              label="Win day rate"
+              value={formatPercent(evaluation.summary.winDayRate)}
+            />
+            <Metric
+              label="Expectancy / day"
+              tone={evaluation.summary.expectancy}
+              value={formatCurrency(evaluation.summary.expectancy)}
+            />
+            <Metric
+              label="Mode A / B days"
+              value={`${evaluation.summary.modeADays} / ${evaluation.summary.modeBDays}`}
+            />
+            <Metric
+              label="Green / red / flat"
+              value={`${evaluation.summary.greenDays} / ${evaluation.summary.redDays} / ${evaluation.summary.flatDays}`}
+            />
+          </div>
+
+          <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
+            <SwitchOutcomeCard
+              modeAName={modeA.name}
+              modeBName={modeB.name}
+              summary={evaluation.summary}
+            />
+            <SwitchEquityChart
+              days={evaluation.days}
+              modeAName={modeA.name}
+              modeBName={modeB.name}
+            />
+          </section>
+
+          <RoutedPnlChart
+            days={evaluation.days}
+            modeAName={modeA.name}
+            modeBName={modeB.name}
+          />
+          <ModeSwitchDayTable
+            days={evaluation.days}
+            modeAName={modeA.name}
+            modeBName={modeB.name}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SwitchOutcomeCard({
+  modeAName,
+  modeBName,
+  summary,
+}: {
+  modeAName: string;
+  modeBName: string;
+  summary: ReturnType<typeof evaluateModeSwitchRule>["summary"];
+}) {
+  return (
+    <div className="subtle-card p-4">
+      <div className="chart-heading">
+        <span>Switch vs always run</span>
+      </div>
+      <div className="grid gap-3">
+        <SwitchMetricRow label="Switch" metrics={summary} />
+        <SwitchMetricRow label={modeAName} metrics={summary.alwaysA} />
+        <SwitchMetricRow label={modeBName} metrics={summary.alwaysB} />
+      </div>
+      <div className="quiet-text mt-4 grid gap-1 text-xs">
+        <span>
+          Avoided losses: {modeAName} {summary.avoidedLossModeA}, {modeBName}{" "}
+          {summary.avoidedLossModeB}
+        </span>
+        <span>
+          Missed wins: {modeAName} {summary.missedWinModeA}, {modeBName}{" "}
+          {summary.missedWinModeB}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SwitchMetricRow({
+  label,
+  metrics,
+}: {
+  label: string;
+  metrics: ModeSwitchMetrics;
+}) {
+  return (
+    <div className="rounded-sm border border-slate-800 bg-slate-950/40 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="strong-text truncate font-semibold">{label}</span>
+        <span className={toneClass(metrics.totalPnl)}>
+          {formatCurrency(metrics.totalPnl)}
+        </span>
+      </div>
+      <div className="quiet-text mt-2 grid grid-cols-2 gap-2 text-xs">
+        <span>DD {formatCurrency(metrics.maxDrawdown)}</span>
+        <span>Win {formatPercent(metrics.winDayRate)}</span>
+        <span>Exp {formatCurrency(metrics.expectancy)}</span>
+        <span>
+          {metrics.greenDays}/{metrics.redDays}/{metrics.flatDays}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RoutedPnlChart({
+  days,
+  modeAName,
+  modeBName,
+}: {
+  days: ModeSwitchDay[];
+  modeAName: string;
+  modeBName: string;
+}) {
+  const maxAbs = Math.max(...days.map((day) => Math.abs(day.switchedPnl)), 1);
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap justify-between gap-3">
+        <div className="chart-heading">
+          <span>Routed daily PnL</span>
+        </div>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <span className="inline-flex items-center gap-2">
+            <span className="size-3 rounded-sm bg-amber-400" />
+            {modeAName}
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="size-3 rounded-sm bg-sky-300" />
+            {modeBName}
+          </span>
+        </div>
+      </div>
+      <div
+        className="grid h-60 items-center gap-1 overflow-hidden border-y border-slate-800 py-4"
+        style={{
+          gridTemplateColumns: `repeat(${Math.max(days.length, 1)}, minmax(0, 1fr))`,
+        }}
+      >
+        {days.map((day) => {
+          const height = Math.max(
+            (Math.abs(day.switchedPnl) / maxAbs) * 104,
+            2,
+          );
+          return (
+            <div
+              className="relative h-52 min-w-0"
+              key={day.tradingDate}
+              title={`${day.tradingDate}: RSI ${formatNumber(day.previousRsi)}, ${day.selectedMode === "mode-a" ? modeAName : modeBName} ${formatCurrency(day.switchedPnl)}`}
+            >
+              <div className="absolute top-1/2 h-px w-full bg-slate-700/70" />
+              <div
+                className={routedBarClass(day)}
+                style={{
+                  height,
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function routedBarClass(day: ModeSwitchDay) {
+  const color =
+    day.selectedMode === "mode-a"
+      ? day.switchedPnl >= 0
+        ? "bg-amber-400"
+        : "bg-amber-700"
+      : day.switchedPnl >= 0
+        ? "bg-sky-300"
+        : "bg-rose-400";
+  return day.switchedPnl >= 0
+    ? `absolute bottom-1/2 w-full rounded-t-sm ${color}`
+    : `absolute top-1/2 w-full rounded-b-sm ${color}`;
+}
+
+function SwitchEquityChart({
+  days,
+  modeAName,
+  modeBName,
+}: {
+  days: ModeSwitchDay[];
+  modeAName: string;
+  modeBName: string;
+}) {
+  const switched = cumulative(days.map((day) => day.switchedPnl));
+  const modeA = cumulative(days.map((day) => day.modeAPnl));
+  const modeB = cumulative(days.map((day) => day.modeBPnl));
+  const allValues = [...switched, ...modeA, ...modeB, 0];
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const span = max - min || 1;
+  const width = 760;
+  const height = 230;
+  const x = (index: number) =>
+    days.length <= 1 ? 0 : (index / (days.length - 1)) * width;
+  const y = (value: number) => height - ((value - min) / span) * height;
+
+  return (
+    <div className="subtle-card p-4">
+      <div className="mb-3 flex flex-wrap justify-between gap-3">
+        <div className="chart-heading">
+          <span>Switched equity</span>
+        </div>
+        <div className="quiet-text flex flex-wrap gap-3 text-xs">
+          <span>Switch</span>
+          <span>{modeAName}</span>
+          <span>{modeBName}</span>
+        </div>
+      </div>
+      <svg
+        className="h-64 w-full overflow-visible"
+        role="img"
+        viewBox={`0 0 ${width} ${height}`}
+      >
+        <title>Switched equity compared with always-running each mode</title>
+        <line
+          stroke="rgba(148, 163, 184, 0.35)"
+          x1="0"
+          x2={width}
+          y1={y(0)}
+          y2={y(0)}
+        />
+        <polyline
+          fill="none"
+          points={pointsFor(switched, x, y)}
+          stroke="#2dd4bf"
+          strokeWidth="4"
+        />
+        <polyline
+          fill="none"
+          points={pointsFor(modeA, x, y)}
+          stroke="#f59e0b"
+          strokeWidth="2"
+        />
+        <polyline
+          fill="none"
+          points={pointsFor(modeB, x, y)}
+          stroke="#38bdf8"
+          strokeWidth="2"
+        />
+      </svg>
+    </div>
+  );
+}
+
+function ModeSwitchDayTable({
+  days,
+  modeAName,
+  modeBName,
+}: {
+  days: ModeSwitchDay[];
+  modeAName: string;
+  modeBName: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const sortedDays = [...days].sort((left, right) =>
+    right.tradingDate.localeCompare(left.tradingDate),
+  );
+
+  return (
+    <div className="border-t border-slate-800 pt-4">
+      <button
+        aria-expanded={isOpen}
+        className="ghost-button w-full justify-between"
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        <span>Mode switch day table ({days.length})</span>
+        <ChevronDown
+          aria-hidden
+          className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
+          size={16}
+        />
+      </button>
+      {isOpen ? (
+        <div className="mt-4 overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Prev RSI</th>
+                <th>Selected</th>
+                <th>Mode A</th>
+                <th>Mode B</th>
+                <th>Switched</th>
+                <th>Opportunity cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedDays.map((day) => (
+                <tr key={day.tradingDate}>
+                  <td>{day.tradingDate}</td>
+                  <td>{formatNumber(day.previousRsi)}</td>
+                  <td>
+                    <span
+                      className={
+                        day.selectedMode === "mode-a"
+                          ? "rounded-sm bg-amber-400/15 px-2 py-1 font-semibold text-amber-200"
+                          : "rounded-sm bg-sky-400/15 px-2 py-1 font-semibold text-sky-200"
+                      }
+                    >
+                      {day.selectedMode === "mode-a" ? modeAName : modeBName}
+                    </span>
+                  </td>
+                  <td className={toneClass(day.modeAPnl)}>
+                    {formatCurrency(day.modeAPnl)}
+                  </td>
+                  <td className={toneClass(day.modeBPnl)}>
+                    {formatCurrency(day.modeBPnl)}
+                  </td>
+                  <td className={toneClass(day.switchedPnl)}>
+                    {formatCurrency(day.switchedPnl)}
+                  </td>
+                  <td className={toneClass(-day.opportunityCost)}>
+                    {formatCurrency(day.opportunityCost)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function operatorLabel(operator: ModeSwitchOperator) {
+  if (operator === "gt") {
+    return ">";
+  }
+
+  if (operator === "gte") {
+    return ">=";
+  }
+
+  if (operator === "lt") {
+    return "<";
+  }
+
+  return "<=";
+}
+
+function cumulative(values: number[]) {
+  let total = 0;
+  return values.map((value) => {
+    total += value;
+    return total;
+  });
+}
+
+function pointsFor(
+  values: number[],
+  x: (index: number) => number,
+  y: (value: number) => number,
+) {
+  return values.map((value, index) => `${x(index)},${y(value)}`).join(" ");
 }
 
 function OutperformanceVersus({

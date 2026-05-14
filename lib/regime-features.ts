@@ -385,6 +385,42 @@ export function summarizePredictiveThreshold(
   };
 }
 
+export function summarizePredictiveRsiBands(
+  days: PredictiveRegimeDay[],
+  lowerBand: number,
+) {
+  const normalizedLower = Math.max(0, Math.min(lowerBand, 49));
+  const upperBand = 100 - normalizedLower;
+  const eligibleDays = days.filter((day) => day.previousRsi !== null);
+
+  return [
+    summarizeBucket(
+      `Previous RSI < ${normalizedLower}`,
+      eligibleDays.filter(
+        (day) =>
+          classifyRsiBand(day.previousRsi, normalizedLower, upperBand) ===
+          "below-lower",
+      ),
+    ),
+    summarizeBucket(
+      `Previous RSI ${normalizedLower}-${upperBand}`,
+      eligibleDays.filter(
+        (day) =>
+          classifyRsiBand(day.previousRsi, normalizedLower, upperBand) ===
+          "mid-band",
+      ),
+    ),
+    summarizeBucket(
+      `Previous RSI > ${upperBand}`,
+      eligibleDays.filter(
+        (day) =>
+          classifyRsiBand(day.previousRsi, normalizedLower, upperBand) ===
+          "above-upper",
+      ),
+    ),
+  ];
+}
+
 export function summarizePredictiveCategory(
   days: PredictiveRegimeDay[],
   field:

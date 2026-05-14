@@ -9,6 +9,7 @@ import {
   classifyEmaStack,
   classifyRsiBand,
   findCrossWithinLookback,
+  summarizePredictiveRsiBands,
   summarizePredictiveThreshold,
 } from "@/lib/regime-features";
 import { assertApprox, assertEqual } from "@/tests/assert";
@@ -99,6 +100,22 @@ const thresholdSummary = summarizePredictiveThreshold(
 assertEqual(thresholdSummary.above.count, 1, "ATR above bucket");
 assertEqual(thresholdSummary.below.count, 1, "ATR below bucket");
 assertEqual(thresholdSummary.above.totalPnl, 200, "ATR bucket total PnL");
+
+const rsiBands = summarizePredictiveRsiBands(
+  [
+    { ...predictiveDays[0], previousRsi: 19, netProfit: -100 },
+    { ...predictiveDays[1], previousRsi: 50, netProfit: 25 },
+    { ...predictiveDays[2], previousRsi: 81, netProfit: 200 },
+  ],
+  20,
+);
+
+assertEqual(rsiBands[0].label, "Previous RSI < 20", "RSI lower band label");
+assertEqual(rsiBands[1].label, "Previous RSI 20-80", "RSI middle band label");
+assertEqual(rsiBands[2].label, "Previous RSI > 80", "RSI upper band label");
+assertEqual(rsiBands[0].count, 1, "RSI lower band count");
+assertEqual(rsiBands[1].count, 1, "RSI middle band count");
+assertEqual(rsiBands[2].count, 1, "RSI upper band count");
 
 console.log("Regime feature tests passed.");
 

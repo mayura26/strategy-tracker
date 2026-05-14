@@ -1,8 +1,11 @@
 import { ComparisonWorkbench } from "@/components/comparison-workbench";
-import { listComparisonGroups } from "@/lib/db/repository";
+import { getAnalysisSettings, listComparisonGroups } from "@/lib/db/repository";
 
 export default async function ComparePage() {
-  const groups = await listComparisonGroups();
+  const [groups, analysisSettings] = await Promise.all([
+    listComparisonGroups(),
+    getAnalysisSettings(),
+  ]);
 
   return (
     <div className="grid gap-6">
@@ -15,7 +18,10 @@ export default async function ComparePage() {
           </p>
         </div>
       </section>
-      <ComparisonWorkbench groups={groups} />
+      <ComparisonWorkbench
+        analysisSettings={analysisSettings}
+        groups={groups}
+      />
     </div>
   );
 }
