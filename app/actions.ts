@@ -88,7 +88,7 @@ export async function uploadRunCsv(formData: FormData) {
   });
 
   revalidatePath("/runs");
-  redirect(`/runs/${runId}`);
+  return { runId };
 }
 
 function getImportFileName(

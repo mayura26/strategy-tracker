@@ -1,7 +1,8 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, RotateCcw, Upload } from "lucide-react";
-import { type FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { type FormEvent, useMemo, useState, useTransition } from "react";
 
 import { uploadRunCsv } from "@/app/actions";
 import type { BotOption, InstrumentOption } from "@/lib/db/repository";
@@ -25,8 +26,11 @@ export function ImportRunForm({
   const [pasteMessage, setPasteMessage] = useState("");
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [previewError, setPreviewError] = useState("");
+  const [importError, setImportError] = useState("");
   const [rawCsv, setRawCsv] = useState("");
   const [fileName, setFileName] = useState("");
+  const router = useRouter();
+  const [isImportPending, startImportTransition] = useTransition();
   const selectedBot = useMemo(
     () => bots.find((bot) => bot.id === botId) ?? bots[0],
     [botId, bots],
@@ -45,9 +49,59 @@ export function ImportRunForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPreviewError("");
+    setImportError("");
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+
+    if (preview) {
+      const runName = String(formData.get("runName") ?? "").trim();
+      const timeframeValue = String(formData.get("timeframe") ?? "").trim();
+
+      if (!runName) {
+        setImportError("Enter a run name before saving.");
+        return;
+      }
+
+      if (!timeframeValue) {
+        setImportError("Enter a timeframe before saving.");
+        return;
+      }
+
+      if (!rawCsv.trim()) {
+        setImportError(
+          "Import data is missing. Use Edit import and preview the CSV again.",
+        );
+        return;
+      }
+
+      try {
+        JSON.parse(String(formData.get("settingsJson") || "{}"));
+      } catch {
+        setImportError("Settings JSON must be valid JSON.");
+        return;
+      }
+
+      startImportTransition(() => {
+        void (async () => {
+          try {
+            const { runId } = await uploadRunCsv(formData);
+            router.push(`/runs/${runId}`);
+          } catch (error) {
+            if (isNextRedirect(error)) {
+              throw error;
+            }
+            setImportError(
+              error instanceof Error
+                ? error.message
+                : "The run could not be saved.",
+            );
+          }
+        })();
+      });
+      return;
+    }
+
     const file = formData.get("csvFile");
 
     try {
@@ -82,14 +136,11 @@ export function ImportRunForm({
     setRawCsv("");
     setFileName("");
     setPreviewError("");
+    setImportError("");
   }
 
   return (
-    <form
-      action={uploadRunCsv}
-      className="panel grid gap-6"
-      onSubmit={preview ? undefined : handleSubmit}
-    >
+    <form className="panel grid gap-6" noValidate onSubmit={handleSubmit}>
       {preview ? (
         <>
           <textarea hidden name="rawCsv" readOnly value={rawCsv} />
@@ -241,17 +292,31 @@ export function ImportRunForm({
           <p>{previewError}</p>
         </div>
       ) : null}
+      {importError ? (
+        <div className="subtle-card flex items-start gap-3 border-rose-400/35 bg-rose-950/20 p-4 text-sm text-rose-200">
+          <AlertTriangle aria-hidden className="mt-0.5 shrink-0" size={18} />
+          <p>{importError}</p>
+        </div>
+      ) : null}
       {preview ? (
         <ImportPreviewPanel fileName={fileName} preview={preview} />
       ) : null}
       <div className="flex flex-wrap gap-3">
-        <button className="primary-button" type="submit">
+        <button
+          className="primary-button"
+          disabled={preview ? isImportPending : false}
+          type="submit"
+        >
           {preview ? (
             <CheckCircle2 aria-hidden size={16} />
           ) : (
             <Upload aria-hidden size={16} />
           )}
-          {preview ? "Confirm and save" : "Preview import"}
+          {preview
+            ? isImportPending
+              ? "Saving…"
+              : "Confirm and save"
+            : "Preview import"}
         </button>
         {preview ? (
           <button className="ghost-button" onClick={clearPreview} type="button">
@@ -455,6 +520,16 @@ function findField(text: string, pattern: RegExp) {
 
 function sameName(left: string, right: string) {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function isNextRedirect(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof (error as { digest: unknown }).digest === "string" &&
+    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
 }
 
 function Field({
