@@ -4,6 +4,7 @@ import {
   BarChart3,
   ChevronDown,
   CircleDot,
+  Download,
   SlidersHorizontal,
 } from "lucide-react";
 import Link from "next/link";
@@ -203,7 +204,28 @@ export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
               {filteredDays.length} of {alignedDays.length} aligned days shown.
             </p>
           </div>
-          <BarChart3 aria-hidden className="quiet-text" size={20} />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="ghost-button min-h-10"
+              onClick={() =>
+                downloadAlignedDaysCsv({
+                  candidateName: candidate.name,
+                  days: filteredDays,
+                  fileName: csvFileName(
+                    "daily-deltas",
+                    golden.name,
+                    candidate.name,
+                  ),
+                  goldenName: golden.name,
+                })
+              }
+              type="button"
+            >
+              <Download aria-hidden size={15} />
+              Export shown
+            </button>
+            <BarChart3 aria-hidden className="quiet-text" size={20} />
+          </div>
         </div>
         <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px]">
           <label className="grid gap-2">
@@ -382,6 +404,28 @@ function OutperformanceVersus({
           />
         </label>
       </div>
+      <div className="mb-4 flex flex-wrap justify-end gap-2">
+        <button
+          className="ghost-button min-h-10"
+          disabled={thresholdDays.length === 0}
+          onClick={() =>
+            downloadAlignedDaysCsv({
+              candidateName,
+              days: thresholdDays,
+              fileName: csvFileName(
+                "material-deltas",
+                goldenName,
+                candidateName,
+              ),
+              goldenName,
+            })
+          }
+          type="button"
+        >
+          <Download aria-hidden size={15} />
+          Export material days
+        </button>
+      </div>
       <div className="metric-grid">
         <VersusMetric
           label={`${candidateName} beat days`}
@@ -468,6 +512,76 @@ function OutperformanceVersus({
         </table>
       </div>
     </section>
+  );
+}
+
+function downloadAlignedDaysCsv({
+  days,
+  goldenName,
+  candidateName,
+  fileName,
+}: {
+  days: ReturnType<typeof alignDailyPnL>;
+  goldenName: string;
+  candidateName: string;
+  fileName: string;
+}) {
+  const rows = [
+    [
+      "trading_date",
+      "golden_run",
+      "candidate_run",
+      "golden_pnl",
+      "candidate_pnl",
+      "delta",
+      "winner",
+      "golden_trades",
+      "candidate_trades",
+    ],
+    ...days.map((day) => [
+      day.tradingDate,
+      goldenName,
+      candidateName,
+      String(day.goldenPnl),
+      String(day.candidatePnl),
+      String(day.delta),
+      day.delta > 0 ? candidateName : day.delta < 0 ? goldenName : "tie",
+      String(day.goldenTrades),
+      String(day.candidateTrades),
+    ]),
+  ];
+  const csv = rows.map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+  const blob = new Blob([`${csv}\n`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `${fileName}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsvCell(value: string) {
+  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+function csvFileName(
+  prefix: string,
+  goldenName: string,
+  candidateName: string,
+) {
+  return `${prefix}-${slugify(goldenName)}-vs-${slugify(candidateName)}`;
+}
+
+function slugify(value: string) {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "run"
   );
 }
 
