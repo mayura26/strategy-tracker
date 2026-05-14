@@ -15,7 +15,7 @@ Last updated: 2026-05-13
 - Import preview/confirmation flow showing parsed trade count, date range, first/last trade, core metrics, largest daily moves, and data-quality warnings before saving.
 - Bot load text paste parser that can auto-select saved bot, mode, and instrument from lines like `Bot loaded:`, `Mode:`, and `Instrument:`.
 - Raw CSV storage with SHA-256 hash and normalized trade rows.
-- Run library, run detail page, data-period coverage markers, golden baseline pinning, compare page, combo workbench, and market-data page.
+- Run library with search, scope filters, sorting, quick analysis actions, run detail page, data-period coverage markers, golden baseline pinning, compare page, combo workbench, and market-data page.
 - Day-centric charts for equity curve, daily PnL, and daily/session PnL distribution.
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`.
