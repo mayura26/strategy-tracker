@@ -29,7 +29,7 @@ Last updated: 2026-05-14
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
 - Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, contribution days, and version history snapshots.
 - Visual comparison workspace with scoped run selection, overlap-only or union date handling, selectable full-run vs selected-period core metric bars, outperformance-vs counts with material-delta filtering, CSV exports for visible/material day lists, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, and daily/session box and dot plots.
-- Compare mode switch lab for same-bot cross-mode routing, using prior-session RSI, prior ATR, opening-range percentage, and previous 15:45-16:00 range percentage threshold rules to simulate one-mode-per-day switched PnL with non-selected modes treated as zero exposure.
+- Compare mode switch lab for same-bot cross-mode routing, using prior-session RSI, prior ATR, opening-range percentage, and previous 15:45-16:00 range percentage threshold rules to simulate one-mode-per-day switched PnL with non-selected modes treated as zero exposure, including a cash fallback route.
 - Saved compare switch rules for preserving promising Mode A/Mode B routing rules with evaluation snapshots.
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, outperformance summaries, overlap/union daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`; the Next.js app now stores compatible job snapshots and local heuristic results.

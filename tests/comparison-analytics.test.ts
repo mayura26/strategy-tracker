@@ -210,6 +210,7 @@ assertEqual(
 assertEqual(switchEvaluation.summary.totalPnl, 600, "switch total PnL");
 assertEqual(switchEvaluation.summary.modeADays, 1, "mode A routed days");
 assertEqual(switchEvaluation.summary.modeBDays, 2, "mode B routed days");
+assertEqual(switchEvaluation.summary.cashDays, 0, "cash routed days default");
 assertEqual(
   switchEvaluation.summary.avoidedLossModeA,
   2,
@@ -258,6 +259,27 @@ assertEqual(
   400,
   "opening range switch PnL",
 );
+
+const cashSwitch = evaluateModeSwitchRule({
+  marketBars: [
+    bar("2026-04-01", 10),
+    bar("2026-04-02", 11),
+    bar("2026-04-03", 12),
+    bar("2026-04-04", 13),
+  ],
+  modeADays: [day("2026-04-04", 300, 1)],
+  modeBDays: [day("2026-04-04", -500, 1)],
+  rule: {
+    falseRoute: "cash",
+    operator: "lt",
+    threshold: 10,
+  },
+  settings: switchSettings,
+});
+
+assertEqual(cashSwitch.days[0].selectedMode, "cash", "false route can be cash");
+assertEqual(cashSwitch.days[0].switchedPnl, 0, "cash route has zero PnL");
+assertEqual(cashSwitch.summary.cashDays, 1, "cash routed day counted");
 
 const discoveredSwitches = discoverModeSwitchRules({
   marketBars: [

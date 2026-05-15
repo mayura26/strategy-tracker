@@ -76,6 +76,7 @@ export type OutperformanceSummary = {
 };
 
 export type ModeSwitchOperator = "gt" | "gte" | "lt" | "lte";
+export type ModeSwitchFalseRoute = "mode-b" | "cash";
 export type ModeSwitchFeature =
   | "previous-rsi"
   | "previous-atr"
@@ -86,6 +87,7 @@ export type ModeSwitchFeature =
 
 export type ModeSwitchRule = {
   feature?: ModeSwitchFeature;
+  falseRoute?: ModeSwitchFalseRoute;
   operator: ModeSwitchOperator;
   threshold: number;
 };
@@ -99,7 +101,7 @@ export type ModeSwitchDay = {
   modeBPnl: number;
   modeATrades: number;
   modeBTrades: number;
-  selectedMode: "mode-a" | "mode-b";
+  selectedMode: "mode-a" | "mode-b" | "cash";
   switchedPnl: number;
   bestAvailablePnl: number;
   opportunityCost: number;
@@ -119,6 +121,7 @@ export type ModeSwitchSummary = ModeSwitchMetrics & {
   totalDays: number;
   modeADays: number;
   modeBDays: number;
+  cashDays: number;
   comparedOverlapDays: number;
   excludedNoSignalDays: number;
   avoidedLossModeA: number;
@@ -300,6 +303,7 @@ export function evaluateModeSwitchRule({
 }): ModeSwitchEvaluation {
   const overlapDays = alignDailyPnL(modeADays, modeBDays, "overlap");
   const feature = rule.feature ?? "previous-rsi";
+  const falseRoute = rule.falseRoute ?? "mode-b";
   const predictiveByDate = new Map(
     buildPredictiveRegimeDays(
       modeADays,
@@ -320,7 +324,17 @@ export function evaluateModeSwitchRule({
       }
 
       const selectsModeA = evaluateSwitchCondition(signalValue, rule);
-      const switchedPnl = selectsModeA ? day.goldenPnl : day.candidatePnl;
+      const selectedMode = selectsModeA
+        ? "mode-a"
+        : falseRoute === "cash"
+          ? "cash"
+          : "mode-b";
+      const switchedPnl =
+        selectedMode === "mode-a"
+          ? day.goldenPnl
+          : selectedMode === "mode-b"
+            ? day.candidatePnl
+            : 0;
       const bestAvailablePnl = Math.max(day.goldenPnl, day.candidatePnl);
 
       return {
@@ -331,7 +345,7 @@ export function evaluateModeSwitchRule({
         modeBTrades: day.candidateTrades,
         opportunityCost: bestAvailablePnl - switchedPnl,
         previousRsi: predictiveDay?.previousRsi ?? null,
-        selectedMode: selectsModeA ? "mode-a" : "mode-b",
+        selectedMode,
         signalLabel: labelForSwitchFeature(feature, settings),
         signalValue,
         switchedPnl,
@@ -369,6 +383,7 @@ export function discoverModeSwitchRules({
 }): ModeSwitchCandidate[] {
   const candidates: ModeSwitchCandidate[] = [];
   const operators: ModeSwitchOperator[] = ["gt", "gte", "lt", "lte"];
+  const falseRoutes: ModeSwitchFalseRoute[] = ["mode-b", "cash"];
   const switchFeatures =
     features ??
     (thresholds ? ["previous-rsi" as const] : defaultSwitchFeatures);
@@ -385,39 +400,42 @@ export function discoverModeSwitchRules({
 
     for (const threshold of featureThresholds) {
       for (const operator of operators) {
-        const rule = { feature, operator, threshold };
-        const evaluation = evaluateModeSwitchRule({
-          marketBars,
-          marketSessionFeatures,
-          modeADays,
-          modeBDays,
-          rule,
-          settings,
-        });
+        for (const falseRoute of falseRoutes) {
+          const rule = { falseRoute, feature, operator, threshold };
+          const evaluation = evaluateModeSwitchRule({
+            marketBars,
+            marketSessionFeatures,
+            modeADays,
+            modeBDays,
+            rule,
+            settings,
+          });
 
-        if (
-          evaluation.summary.totalDays < minDays ||
-          evaluation.summary.modeADays === 0 ||
-          evaluation.summary.modeBDays === 0
-        ) {
-          continue;
-        }
+          if (
+            evaluation.summary.totalDays < minDays ||
+            evaluation.summary.modeADays === 0 ||
+            (falseRoute === "mode-b" && evaluation.summary.modeBDays === 0) ||
+            (falseRoute === "cash" && evaluation.summary.cashDays === 0)
+          ) {
+            continue;
+          }
 
-        const improvementVsModeA =
-          evaluation.summary.totalPnl - evaluation.summary.alwaysA.totalPnl;
-        const improvementVsModeB =
-          evaluation.summary.totalPnl - evaluation.summary.alwaysB.totalPnl;
+          const improvementVsModeA =
+            evaluation.summary.totalPnl - evaluation.summary.alwaysA.totalPnl;
+          const improvementVsModeB =
+            evaluation.summary.totalPnl - evaluation.summary.alwaysB.totalPnl;
 
-        candidates.push({
-          evaluation,
-          improvementVsBestAlways: Math.min(
+          candidates.push({
+            evaluation,
+            improvementVsBestAlways: Math.min(
+              improvementVsModeA,
+              improvementVsModeB,
+            ),
             improvementVsModeA,
             improvementVsModeB,
-          ),
-          improvementVsModeA,
-          improvementVsModeB,
-          rule,
-        });
+            rule,
+          });
+        }
       }
     }
   }
@@ -556,18 +574,19 @@ function summarizeModeSwitchDays(
     alwaysA: metricsFromValues(modeAValues),
     alwaysB: metricsFromValues(modeBValues),
     avoidedLossModeA: days.filter(
-      (day) => day.selectedMode === "mode-b" && day.modeAPnl < 0,
+      (day) => day.selectedMode !== "mode-a" && day.modeAPnl < 0,
     ).length,
     avoidedLossModeB: days.filter(
-      (day) => day.selectedMode === "mode-a" && day.modeBPnl < 0,
+      (day) => day.selectedMode !== "mode-b" && day.modeBPnl < 0,
     ).length,
+    cashDays: days.filter((day) => day.selectedMode === "cash").length,
     comparedOverlapDays,
     excludedNoSignalDays: comparedOverlapDays - days.length,
     missedWinModeA: days.filter(
-      (day) => day.selectedMode === "mode-b" && day.modeAPnl > 0,
+      (day) => day.selectedMode !== "mode-a" && day.modeAPnl > 0,
     ).length,
     missedWinModeB: days.filter(
-      (day) => day.selectedMode === "mode-a" && day.modeBPnl > 0,
+      (day) => day.selectedMode !== "mode-b" && day.modeBPnl > 0,
     ).length,
     modeADays: days.filter((day) => day.selectedMode === "mode-a").length,
     modeBDays: days.filter((day) => day.selectedMode === "mode-b").length,

@@ -25,6 +25,7 @@ import {
   labelForSwitchFeature,
   type ModeSwitchCandidate,
   type ModeSwitchDay,
+  type ModeSwitchFalseRoute,
   type ModeSwitchFeature,
   type ModeSwitchMetrics,
   type ModeSwitchOperator,
@@ -478,6 +479,7 @@ function ModeSwitchLab({
 }) {
   const [operator, setOperator] = useState<ModeSwitchOperator>("gt");
   const [feature, setFeature] = useState<ModeSwitchFeature>("previous-rsi");
+  const [falseRoute, setFalseRoute] = useState<ModeSwitchFalseRoute>("mode-b");
   const [threshold, setThreshold] = useState(
     defaultDisplayThreshold("previous-rsi", analysisSettings),
   );
@@ -490,7 +492,7 @@ function ModeSwitchLab({
         marketSessionFeatures: group.marketSessionFeatures,
         modeADays: modeA.dailyMetrics,
         modeBDays: modeB.dailyMetrics,
-        rule: { feature, operator, threshold: ruleThreshold },
+        rule: { falseRoute, feature, operator, threshold: ruleThreshold },
         settings: analysisSettings,
       }),
     [
@@ -501,6 +503,7 @@ function ModeSwitchLab({
       analysisSettings,
       feature,
       operator,
+      falseRoute,
       ruleThreshold,
     ],
   );
@@ -516,11 +519,13 @@ function ModeSwitchLab({
     [modeA, modeB, group.marketSessionFeatures, marketBars, analysisSettings],
   );
   const featureLabel = labelForSwitchFeature(feature, analysisSettings);
+  const fallbackLabel = falseRoute === "cash" ? "Cash" : "Mode B";
   const ruleText = `${featureLabel} ${operatorLabel(operator)} ${formatSwitchThreshold(
     feature,
     ruleThreshold,
   )}`;
   const ruleJson = JSON.stringify({
+    falseRoute,
     feature,
     indicator: feature,
     operator,
@@ -542,11 +547,11 @@ function ModeSwitchLab({
         <div>
           <h2>Mode switch lab</h2>
           <p>
-            {ruleText} routes to Mode A; otherwise Mode B. The unselected mode
-            is treated as zero exposure.
+            {ruleText} routes to Mode A; otherwise {fallbackLabel}. Modes not
+            selected by the route are treated as zero exposure.
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-[220px_120px_140px]">
+        <div className="grid gap-2 sm:grid-cols-[220px_120px_140px_140px]">
           <label className="grid gap-1">
             <span className="label-text">Signal</span>
             <select
@@ -595,6 +600,19 @@ function ModeSwitchLab({
               value={threshold}
             />
           </label>
+          <label className="grid gap-1">
+            <span className="label-text">Otherwise</span>
+            <select
+              className="input min-h-10"
+              onChange={(event) =>
+                setFalseRoute(event.target.value as ModeSwitchFalseRoute)
+              }
+              value={falseRoute}
+            >
+              <option value="mode-b">Mode B</option>
+              <option value="cash">Cash</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -642,8 +660,8 @@ function ModeSwitchLab({
               value={formatCurrency(evaluation.summary.expectancy)}
             />
             <Metric
-              label="Mode A / B days"
-              value={`${evaluation.summary.modeADays} / ${evaluation.summary.modeBDays}`}
+              label="A / B / cash days"
+              value={`${evaluation.summary.modeADays} / ${evaluation.summary.modeBDays} / ${evaluation.summary.cashDays}`}
             />
             <Metric
               label="Green / red / flat"
@@ -668,6 +686,7 @@ function ModeSwitchLab({
             onApply={(candidate) => {
               const candidateFeature = candidate.rule.feature ?? "previous-rsi";
               setFeature(candidateFeature);
+              setFalseRoute(candidate.rule.falseRoute ?? "mode-b");
               setOperator(candidate.rule.operator);
               setThreshold(
                 fromRuleThreshold(candidateFeature, candidate.rule.threshold),
@@ -726,7 +745,7 @@ function SwitchOutcomeCard({
       <div className="quiet-text mt-4 grid gap-1 text-xs">
         <span>
           Avoided losses: {modeAName} {summary.avoidedLossModeA}, {modeBName}{" "}
-          {summary.avoidedLossModeB}
+          {summary.avoidedLossModeB}, cash {summary.cashDays} days
         </span>
         <span>
           Missed wins: {modeAName} {summary.missedWinModeA}, {modeBName}{" "}
@@ -806,6 +825,7 @@ function SavedSwitchRulePanel({
 
 function SavedSwitchRuleRow({ rule }: { rule: SavedSwitchRule }) {
   const parsedRule = parseJson<{
+    falseRoute?: ModeSwitchFalseRoute;
     feature?: ModeSwitchFeature;
     operator?: ModeSwitchOperator;
     threshold?: number;
@@ -832,7 +852,7 @@ function SavedSwitchRuleRow({ rule }: { rule: SavedSwitchRule }) {
                       parsedRule.feature ?? "previous-rsi",
                       parsedRule.threshold,
                     )
-              }`}
+              } -> ${parsedRule?.falseRoute === "cash" ? "Cash" : "Mode B"}`}
           </p>
         </div>
         <form action={deleteSwitchRuleAction}>
@@ -911,6 +931,9 @@ function SwitchCandidateStrip({
                 <span>
                   A/B {candidate.evaluation.summary.modeADays}/
                   {candidate.evaluation.summary.modeBDays}
+                  {candidate.evaluation.summary.cashDays > 0
+                    ? `/${candidate.evaluation.summary.cashDays} cash`
+                    : ""}
                 </span>
                 <span>
                   Win {formatPercent(candidate.evaluation.summary.winDayRate)}
@@ -980,6 +1003,10 @@ function RoutedPnlChart({
             <span className="size-3 rounded-sm bg-sky-300" />
             {modeBName}
           </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="size-3 rounded-sm bg-slate-500" />
+            Cash
+          </span>
         </div>
       </div>
       <div
@@ -997,7 +1024,7 @@ function RoutedPnlChart({
             <div
               className="relative h-52 min-w-0"
               key={day.tradingDate}
-              title={`${day.tradingDate}: ${day.signalLabel} ${formatNumber(day.signalValue)}, ${day.selectedMode === "mode-a" ? modeAName : modeBName} ${formatCurrency(day.switchedPnl)}`}
+              title={`${day.tradingDate}: ${day.signalLabel} ${formatNumber(day.signalValue)}, ${selectedModeLabel(day, modeAName, modeBName)} ${formatCurrency(day.switchedPnl)}`}
             >
               <div className="absolute top-1/2 h-px w-full bg-slate-700/70" />
               <div
@@ -1020,12 +1047,26 @@ function routedBarClass(day: ModeSwitchDay) {
       ? day.switchedPnl >= 0
         ? "bg-amber-400"
         : "bg-amber-700"
-      : day.switchedPnl >= 0
-        ? "bg-sky-300"
-        : "bg-rose-400";
+      : day.selectedMode === "mode-b"
+        ? day.switchedPnl >= 0
+          ? "bg-sky-300"
+          : "bg-rose-400"
+        : "bg-slate-500";
   return day.switchedPnl >= 0
     ? `absolute bottom-1/2 w-full rounded-t-sm ${color}`
     : `absolute top-1/2 w-full rounded-b-sm ${color}`;
+}
+
+function selectedModeLabel(
+  day: Pick<ModeSwitchDay, "selectedMode">,
+  modeAName: string,
+  modeBName: string,
+) {
+  if (day.selectedMode === "mode-a") {
+    return modeAName;
+  }
+
+  return day.selectedMode === "mode-b" ? modeBName : "Cash";
 }
 
 function SwitchEquityChart({
@@ -1156,10 +1197,12 @@ function ModeSwitchDayTable({
                       className={
                         day.selectedMode === "mode-a"
                           ? "rounded-sm bg-amber-400/15 px-2 py-1 font-semibold text-amber-200"
-                          : "rounded-sm bg-sky-400/15 px-2 py-1 font-semibold text-sky-200"
+                          : day.selectedMode === "mode-b"
+                            ? "rounded-sm bg-sky-400/15 px-2 py-1 font-semibold text-sky-200"
+                            : "rounded-sm bg-slate-500/20 px-2 py-1 font-semibold text-slate-200"
                       }
                     >
-                      {day.selectedMode === "mode-a" ? modeAName : modeBName}
+                      {selectedModeLabel(day, modeAName, modeBName)}
                     </span>
                   </td>
                   <td className={toneClass(day.modeAPnl)}>
