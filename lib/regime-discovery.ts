@@ -7,6 +7,10 @@ export type RegimeDiscoveryDay = DailyRunMetric & {
   gap?: number | null;
   previousAtr?: number | null;
   previousAtr14?: number | null;
+  openingRange5Pct?: number | null;
+  openingRange10Pct?: number | null;
+  openingRange15Pct?: number | null;
+  previousClosingRange15Pct?: number | null;
   previousRange?: number | null;
   previousGap?: number | null;
   previousReturn?: number | null;
@@ -47,6 +51,10 @@ type NumericField =
   | "gap"
   | "absGap"
   | "previousAtr"
+  | "openingRange5Pct"
+  | "openingRange10Pct"
+  | "openingRange15Pct"
+  | "previousClosingRange15Pct"
   | "previousRange"
   | "previousGap"
   | "previousAbsGap"
@@ -98,6 +106,34 @@ export function discoverRegimeThresholds(
       validationDays,
       previousAtrLabel,
       "previousAtr",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Opening range 5 %",
+      "openingRange5Pct",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Opening range 10 %",
+      "openingRange10Pct",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Opening range 15 %",
+      "openingRange15Pct",
+      minDays,
+    ),
+    ...discoverNumericFeature(
+      trainingDays,
+      validationDays,
+      "Previous 15:45-16:00 range %",
+      "previousClosingRange15Pct",
       minDays,
     ),
     ...discoverNumericFeature(
@@ -308,7 +344,7 @@ function evaluateThreshold(
     validationLift !== null &&
     Math.sign(validationLift) === Math.sign(lift) &&
     Math.abs(validationLift) > 0;
-  const condition = `${feature} ${operator === "gte" ? ">=" : "<"} ${threshold.toFixed(2)}`;
+  const condition = `${feature} ${operator === "gte" ? ">=" : "<"} ${formatThreshold(field, threshold)}`;
 
   return [
     {
@@ -493,6 +529,19 @@ function uniqueStrings(values: string[]) {
 
 function formatCategory(value: string) {
   return value.replaceAll("-", " ");
+}
+
+function formatThreshold(field: NumericField, threshold: number) {
+  if (
+    field === "openingRange5Pct" ||
+    field === "openingRange10Pct" ||
+    field === "openingRange15Pct" ||
+    field === "previousClosingRange15Pct"
+  ) {
+    return `${(threshold * 100).toFixed(2)}%`;
+  }
+
+  return threshold.toFixed(2);
 }
 
 function score(suggestion: ThresholdSuggestion) {

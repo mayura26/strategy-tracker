@@ -26,6 +26,7 @@ export async function createRegimeDiscoveryAnalysisJob(runId: string) {
     run.dailyMetrics,
     run.marketBars,
     analysisSettings,
+    run.marketSessionFeatures,
   );
   const suggestions = discoverRegimeThresholds(predictiveDays, {
     atrPeriod: analysisSettings.atrPeriod,

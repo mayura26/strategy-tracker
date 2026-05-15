@@ -5,7 +5,12 @@ import {
   refreshMarketDataAction,
 } from "@/app/actions";
 import { listMarketRows } from "@/lib/db/repository";
-import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
+import {
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatPercent,
+} from "@/lib/format";
 
 export default async function MarketDataPage() {
   const rows = await listMarketRows();
@@ -71,9 +76,12 @@ export default async function MarketDataPage() {
                 <th>Yahoo</th>
                 <th>Cached range</th>
                 <th>Bars</th>
+                <th>OR cache</th>
                 <th>Latest day</th>
                 <th>Close</th>
                 <th>ATR 14</th>
+                <th>OR15%</th>
+                <th>Close range%</th>
                 <th>Status</th>
                 <th>Fetched</th>
                 <th />
@@ -86,9 +94,12 @@ export default async function MarketDataPage() {
                   <td>{row.yahooSymbol ?? "n/a"}</td>
                   <td>{formatRange(row.firstTradingDate, row.tradingDate)}</td>
                   <td>{row.barCount}</td>
+                  <td>{row.sessionFeatureCount}</td>
                   <td>{row.tradingDate ?? "n/a"}</td>
                   <td>{formatCurrency(row.close)}</td>
                   <td>{formatNumber(row.atr14)}</td>
+                  <td>{formatPercent(row.openingRange15Pct)}</td>
+                  <td>{formatPercent(row.closingRange15Pct)}</td>
                   <td>
                     <span className={statusClass(row.sourceStatus)}>
                       {row.sourceStatus ?? "not cached"}

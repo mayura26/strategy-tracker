@@ -35,6 +35,7 @@ export type RunDetail = RunSummary & {
   trades: NormalizedTradeSummary[];
   dailyMetrics: DailyRunMetric[];
   marketBars: MarketBar[];
+  marketSessionFeatures: MarketSessionFeature[];
   goldenRun: (RunSummary & { dailyMetrics: DailyRunMetric[] }) | null;
   importInfo: {
     fileName: string;
@@ -111,8 +112,11 @@ export type MarketRow = {
   firstTradingDate: string | null;
   tradingDate: string | null;
   barCount: number;
+  sessionFeatureCount: number;
   close: number | null;
   atr14: number | null;
+  openingRange15Pct: number | null;
+  closingRange15Pct: number | null;
   sourceStatus: string | null;
   sourceMessage: string | null;
   fetchedAt: string | null;
@@ -130,6 +134,20 @@ export type MarketBar = {
   range: number | null;
   gap: number | null;
   sourceStatus: string;
+};
+
+export type MarketSessionFeature = {
+  tradingDate: string;
+  openingRange5: number | null;
+  openingRange5Pct: number | null;
+  openingRange10: number | null;
+  openingRange10Pct: number | null;
+  openingRange15: number | null;
+  openingRange15Pct: number | null;
+  closingRange15: number | null;
+  closingRange15Pct: number | null;
+  sourceStatus: string;
+  sourceMessage: string | null;
 };
 
 export type AnalysisSettings = {
@@ -425,6 +443,9 @@ export async function getRunDetail(id: string): Promise<RunDetail | null> {
   const marketBars = await listMarketBarsForInstrument(
     String(row.instrument_id),
   );
+  const marketSessionFeatures = await listMarketSessionFeaturesForInstrument(
+    String(row.instrument_id),
+  );
   const goldenRun = await getGoldenRunForScope(
     String(row.bot_id),
     stringOrNull(row.bot_mode_id),
@@ -442,6 +463,7 @@ export async function getRunDetail(id: string): Promise<RunDetail | null> {
     trades,
     dailyMetrics,
     marketBars,
+    marketSessionFeatures,
     goldenRun,
     importInfo,
   };
@@ -1152,9 +1174,12 @@ export async function listMarketRows(): Promise<MarketRow[]> {
       instruments.yahoo_symbol,
       coverage.first_trading_date,
       coverage.bar_count,
+      feature_coverage.session_feature_count,
       latest.trading_date,
       latest.close,
       latest.atr14,
+      latest_features.opening_range_15_pct,
+      latest_features.closing_range_15_pct,
       latest.source_status,
       latest.source_message,
       latest.fetched_at
@@ -1173,6 +1198,19 @@ export async function listMarketRows(): Promise<MarketRow[]> {
       FROM market_bars
       GROUP BY instrument_id
     ) coverage ON coverage.instrument_id = instruments.id
+    LEFT JOIN market_session_features latest_features
+      ON latest_features.instrument_id = instruments.id
+      AND latest_features.trading_date = (
+        SELECT MAX(trading_date)
+        FROM market_session_features
+        WHERE market_session_features.instrument_id = instruments.id
+      )
+    LEFT JOIN (
+      SELECT instrument_id,
+        COUNT(*) AS session_feature_count
+      FROM market_session_features
+      GROUP BY instrument_id
+    ) feature_coverage ON feature_coverage.instrument_id = instruments.id
     ORDER BY instruments.symbol ASC
   `);
 
@@ -1183,8 +1221,11 @@ export async function listMarketRows(): Promise<MarketRow[]> {
     firstTradingDate: stringOrNull(row.first_trading_date),
     tradingDate: stringOrNull(row.trading_date),
     barCount: Number(row.bar_count ?? 0),
+    sessionFeatureCount: Number(row.session_feature_count ?? 0),
     close: numberOrNull(row.close),
     atr14: numberOrNull(row.atr14),
+    openingRange15Pct: numberOrNull(row.opening_range_15_pct),
+    closingRange15Pct: numberOrNull(row.closing_range_15_pct),
     sourceStatus: stringOrNull(row.source_status),
     sourceMessage: stringOrNull(row.source_message),
     fetchedAt: stringOrNull(row.fetched_at),
@@ -1217,6 +1258,37 @@ export async function listMarketBarsForInstrument(
     range: numberOrNull(row.range),
     gap: numberOrNull(row.gap),
     sourceStatus: String(row.source_status),
+  }));
+}
+
+export async function listMarketSessionFeaturesForInstrument(
+  instrumentId: string,
+): Promise<MarketSessionFeature[]> {
+  await ensureSchema();
+
+  const result = await client.execute({
+    sql: `SELECT trading_date, opening_range_5, opening_range_5_pct,
+        opening_range_10, opening_range_10_pct, opening_range_15,
+        opening_range_15_pct, closing_range_15, closing_range_15_pct,
+        source_status, source_message
+      FROM market_session_features
+      WHERE instrument_id = ?
+      ORDER BY trading_date ASC`,
+    args: [instrumentId],
+  });
+
+  return result.rows.map((row) => ({
+    tradingDate: String(row.trading_date),
+    openingRange5: numberOrNull(row.opening_range_5),
+    openingRange5Pct: numberOrNull(row.opening_range_5_pct),
+    openingRange10: numberOrNull(row.opening_range_10),
+    openingRange10Pct: numberOrNull(row.opening_range_10_pct),
+    openingRange15: numberOrNull(row.opening_range_15),
+    openingRange15Pct: numberOrNull(row.opening_range_15_pct),
+    closingRange15: numberOrNull(row.closing_range_15),
+    closingRange15Pct: numberOrNull(row.closing_range_15_pct),
+    sourceStatus: String(row.source_status),
+    sourceMessage: stringOrNull(row.source_message),
   }));
 }
 
@@ -1273,6 +1345,64 @@ export async function upsertMarketBar(input: {
       input.atr14,
       input.range,
       input.gap,
+      input.sourceStatus,
+      input.sourceMessage,
+      new Date().toISOString(),
+    ],
+  });
+}
+
+export async function upsertMarketSessionFeature(input: {
+  instrumentId: string;
+  yahooSymbol: string;
+  tradingDate: string;
+  openingRange5: number | null;
+  openingRange5Pct: number | null;
+  openingRange10: number | null;
+  openingRange10Pct: number | null;
+  openingRange15: number | null;
+  openingRange15Pct: number | null;
+  closingRange15: number | null;
+  closingRange15Pct: number | null;
+  sourceStatus: string;
+  sourceMessage: string | null;
+}) {
+  await ensureSchema();
+
+  await client.execute({
+    sql: `INSERT INTO market_session_features (
+      id, instrument_id, yahoo_symbol, trading_date, opening_range_5,
+      opening_range_5_pct, opening_range_10, opening_range_10_pct,
+      opening_range_15, opening_range_15_pct, closing_range_15,
+      closing_range_15_pct, source_status, source_message, fetched_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(instrument_id, trading_date)
+    DO UPDATE SET
+      yahoo_symbol = excluded.yahoo_symbol,
+      opening_range_5 = excluded.opening_range_5,
+      opening_range_5_pct = excluded.opening_range_5_pct,
+      opening_range_10 = excluded.opening_range_10,
+      opening_range_10_pct = excluded.opening_range_10_pct,
+      opening_range_15 = excluded.opening_range_15,
+      opening_range_15_pct = excluded.opening_range_15_pct,
+      closing_range_15 = excluded.closing_range_15,
+      closing_range_15_pct = excluded.closing_range_15_pct,
+      source_status = excluded.source_status,
+      source_message = excluded.source_message,
+      fetched_at = excluded.fetched_at`,
+    args: [
+      crypto.randomUUID(),
+      input.instrumentId,
+      input.yahooSymbol,
+      input.tradingDate,
+      input.openingRange5,
+      input.openingRange5Pct,
+      input.openingRange10,
+      input.openingRange10Pct,
+      input.openingRange15,
+      input.openingRange15Pct,
+      input.closingRange15,
+      input.closingRange15Pct,
       input.sourceStatus,
       input.sourceMessage,
       new Date().toISOString(),

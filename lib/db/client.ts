@@ -170,6 +170,27 @@ async function initializeSchema() {
     CREATE UNIQUE INDEX IF NOT EXISTS market_bars_instrument_date_idx
       ON market_bars(instrument_id, trading_date);
 
+    CREATE TABLE IF NOT EXISTS market_session_features (
+      id TEXT PRIMARY KEY,
+      instrument_id TEXT NOT NULL REFERENCES instruments(id),
+      yahoo_symbol TEXT NOT NULL,
+      trading_date TEXT NOT NULL,
+      opening_range_5 REAL,
+      opening_range_5_pct REAL,
+      opening_range_10 REAL,
+      opening_range_10_pct REAL,
+      opening_range_15 REAL,
+      opening_range_15_pct REAL,
+      closing_range_15 REAL,
+      closing_range_15_pct REAL,
+      source_status TEXT NOT NULL,
+      source_message TEXT,
+      fetched_at TEXT NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS market_session_features_instrument_date_idx
+      ON market_session_features(instrument_id, trading_date);
+
     CREATE TABLE IF NOT EXISTS combos (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

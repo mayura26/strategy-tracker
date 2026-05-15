@@ -40,6 +40,39 @@ export function RegimeDiscoveryWorkbench({
   const [rsiBand, setRsiBand] = useState(
     Math.max(0, Math.min(rsiLowerBand, 100 - rsiUpperBand, 49)),
   );
+  const [openingRange5Pct, setOpeningRange5Pct] = useState(
+    Number(
+      (
+        median(
+          days
+            .map((day) => day.openingRange5Pct)
+            .filter((value): value is number => value !== null),
+        ) * 100
+      ).toFixed(2),
+    ),
+  );
+  const [openingRange15Pct, setOpeningRange15Pct] = useState(
+    Number(
+      (
+        median(
+          days
+            .map((day) => day.openingRange15Pct)
+            .filter((value): value is number => value !== null),
+        ) * 100
+      ).toFixed(2),
+    ),
+  );
+  const [previousCloseRangePct, setPreviousCloseRangePct] = useState(
+    Number(
+      (
+        median(
+          days
+            .map((day) => day.previousClosingRange15Pct)
+            .filter((value): value is number => value !== null),
+        ) * 100
+      ).toFixed(2),
+    ),
+  );
   const rsiUpper = 100 - rsiBand;
   const atrSummary = useMemo(
     () =>
@@ -58,6 +91,48 @@ export function RegimeDiscoveryWorkbench({
   const stackSummary = useMemo(
     () => summarizePredictiveCategory(days, "previousEmaStack"),
     [days],
+  );
+  const openingRange5Summary = useMemo(
+    () =>
+      relabelPercentSummary(
+        summarizePredictiveThreshold(
+          days,
+          "openingRange5Pct",
+          openingRange5Pct / 100,
+          "Opening range 5%",
+        ),
+        "Opening range 5%",
+        openingRange5Pct,
+      ),
+    [days, openingRange5Pct],
+  );
+  const openingRange15Summary = useMemo(
+    () =>
+      relabelPercentSummary(
+        summarizePredictiveThreshold(
+          days,
+          "openingRange15Pct",
+          openingRange15Pct / 100,
+          "Opening range 15%",
+        ),
+        "Opening range 15%",
+        openingRange15Pct,
+      ),
+    [days, openingRange15Pct],
+  );
+  const previousCloseRangeSummary = useMemo(
+    () =>
+      relabelPercentSummary(
+        summarizePredictiveThreshold(
+          days,
+          "previousClosingRange15Pct",
+          previousCloseRangePct / 100,
+          "Previous 15:45-16:00 range",
+        ),
+        "Previous 15:45-16:00 range",
+        previousCloseRangePct,
+      ),
+    [days, previousCloseRangePct],
   );
   const fastMidCrossSummary = useMemo(
     () => summarizePredictiveCategory(days, "previousEmaCrossFastMid"),
@@ -115,6 +190,27 @@ export function RegimeDiscoveryWorkbench({
       </div>
 
       <section className="mt-5 grid gap-4 xl:grid-cols-3">
+        <PercentThresholdPanel
+          label="Opening range 5%"
+          onChange={setOpeningRange5Pct}
+          summary={[openingRange5Summary.above, openingRange5Summary.below]}
+          value={openingRange5Pct}
+        />
+        <PercentThresholdPanel
+          label="Opening range 15%"
+          onChange={setOpeningRange15Pct}
+          summary={[openingRange15Summary.above, openingRange15Summary.below]}
+          value={openingRange15Pct}
+        />
+        <PercentThresholdPanel
+          label="Previous 15:45-16:00 range"
+          onChange={setPreviousCloseRangePct}
+          summary={[
+            previousCloseRangeSummary.above,
+            previousCloseRangeSummary.below,
+          ]}
+          value={previousCloseRangePct}
+        />
         <CategoryPanel title="Previous EMA stack" rows={stackSummary} />
         <CategoryPanel title="Fast / mid cross" rows={fastMidCrossSummary} />
         <CategoryPanel title="Mid / slow cross" rows={midSlowCrossSummary} />
@@ -156,6 +252,43 @@ function ThresholdPanel({
           value={value}
         />
       </label>
+      <div className="mt-4 grid gap-3">
+        {summary.map((row) => (
+          <SummaryRow key={row.label} row={row} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PercentThresholdPanel({
+  label,
+  value,
+  summary,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  summary: PredictiveBucketSummary[];
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="subtle-card p-4">
+      <label className="grid gap-2">
+        <span className="label-text">{label} threshold</span>
+        <input
+          className="input"
+          min="0"
+          onChange={(event) => onChange(Number(event.target.value))}
+          step="0.01"
+          type="number"
+          value={value}
+        />
+      </label>
+      <p className="quiet-text mt-2 text-xs">
+        Entered as a percent of price, so 100 points on a 20,000 instrument is
+        0.5.
+      </p>
       <div className="mt-4 grid gap-3">
         {summary.map((row) => (
           <SummaryRow key={row.label} row={row} />
@@ -266,4 +399,21 @@ function median(values: number[]) {
   return sorted.length % 2 === 0
     ? (sorted[middle - 1] + sorted[middle]) / 2
     : sorted[middle];
+}
+
+function relabelPercentSummary(
+  summary: { above: PredictiveBucketSummary; below: PredictiveBucketSummary },
+  label: string,
+  thresholdPct: number,
+) {
+  return {
+    above: {
+      ...summary.above,
+      label: `${label} >= ${thresholdPct}%`,
+    },
+    below: {
+      ...summary.below,
+      label: `${label} < ${thresholdPct}%`,
+    },
+  };
 }

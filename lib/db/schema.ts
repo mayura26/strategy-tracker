@@ -213,6 +213,34 @@ export const marketBars = sqliteTable(
   }),
 );
 
+export const marketSessionFeatures = sqliteTable(
+  "market_session_features",
+  {
+    id: text("id").primaryKey(),
+    instrumentId: text("instrument_id")
+      .notNull()
+      .references(() => instruments.id),
+    yahooSymbol: text("yahoo_symbol").notNull(),
+    tradingDate: text("trading_date").notNull(),
+    openingRange5: real("opening_range_5"),
+    openingRange5Pct: real("opening_range_5_pct"),
+    openingRange10: real("opening_range_10"),
+    openingRange10Pct: real("opening_range_10_pct"),
+    openingRange15: real("opening_range_15"),
+    openingRange15Pct: real("opening_range_15_pct"),
+    closingRange15: real("closing_range_15"),
+    closingRange15Pct: real("closing_range_15_pct"),
+    sourceStatus: text("source_status").notNull(),
+    sourceMessage: text("source_message"),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => ({
+    instrumentDateIndex: uniqueIndex(
+      "market_session_features_instrument_date_idx",
+    ).on(table.instrumentId, table.tradingDate),
+  }),
+);
+
 export const combos = sqliteTable("combos", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

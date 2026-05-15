@@ -25,9 +25,13 @@ import {
   updateRunMetadata,
   updateSavedCombo,
   upsertMarketBar,
+  upsertMarketSessionFeature,
 } from "@/lib/db/repository";
 import { buildImportPreview } from "@/lib/import-preview";
-import { fetchYahooDailyBars } from "@/lib/market/yahoo";
+import {
+  fetchYahooDailyBars,
+  fetchYahooIntradaySessionFeatures,
+} from "@/lib/market/yahoo";
 
 const uploadSchema = z.object({
   botId: z.string().min(1),
@@ -381,6 +385,13 @@ export async function refreshMarketDataAction(formData: FormData) {
         sourceMessage: null,
       });
     }
+
+    await refreshIntradaySessionFeatures({
+      instrumentId,
+      yahooSymbol,
+      lookbackDays,
+      to,
+    });
   } catch (error) {
     await upsertMarketBar({
       instrumentId,
@@ -402,6 +413,56 @@ export async function refreshMarketDataAction(formData: FormData) {
   }
 
   revalidatePath("/market-data");
+}
+
+async function refreshIntradaySessionFeatures({
+  instrumentId,
+  yahooSymbol,
+  lookbackDays,
+  to,
+}: {
+  instrumentId: string;
+  yahooSymbol: string;
+  lookbackDays: number;
+  to: Date;
+}) {
+  const from = new Date();
+  from.setDate(from.getDate() - Math.min(lookbackDays, 60));
+
+  try {
+    const features = await fetchYahooIntradaySessionFeatures(
+      yahooSymbol,
+      from,
+      to,
+    );
+
+    for (const feature of features) {
+      await upsertMarketSessionFeature({
+        instrumentId,
+        yahooSymbol,
+        ...feature,
+      });
+    }
+  } catch (error) {
+    await upsertMarketSessionFeature({
+      instrumentId,
+      yahooSymbol,
+      tradingDate: new Date().toISOString().slice(0, 10),
+      openingRange5: null,
+      openingRange5Pct: null,
+      openingRange10: null,
+      openingRange10Pct: null,
+      openingRange15: null,
+      openingRange15Pct: null,
+      closingRange15: null,
+      closingRange15Pct: null,
+      sourceStatus: "error",
+      sourceMessage:
+        error instanceof Error
+          ? error.message
+          : "Yahoo intraday feature fetch failed.",
+    });
+  }
 }
 
 export async function refreshAllMarketDataAction(formData?: FormData) {

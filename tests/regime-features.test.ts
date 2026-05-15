@@ -1,5 +1,9 @@
 import type { DailyRunMetric } from "@/lib/analytics";
-import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
+import type {
+  AnalysisSettings,
+  MarketBar,
+  MarketSessionFeature,
+} from "@/lib/db/repository";
 import {
   buildPredictiveRegimeDays,
   calculateAtrValues,
@@ -90,6 +94,27 @@ assertEqual(
   "previous RSI is available after warmup",
 );
 
+const predictiveDaysWithSessionFeatures = buildPredictiveRegimeDays(
+  days,
+  bars,
+  settings,
+  [
+    sessionFeature("2026-01-02", 0.004, 0.002),
+    sessionFeature("2026-01-03", 0.006, 0.003),
+  ],
+);
+
+assertEqual(
+  predictiveDaysWithSessionFeatures[0].openingRange5Pct,
+  0.006,
+  "opening range uses current session early range",
+);
+assertEqual(
+  predictiveDaysWithSessionFeatures[1].previousClosingRange15Pct,
+  0.003,
+  "previous closing range uses prior market session",
+);
+
 const thresholdSummary = summarizePredictiveThreshold(
   predictiveDays,
   "previousAtr",
@@ -148,5 +173,25 @@ function day(tradingDate: string, netProfit: number): DailyRunMetric {
     worstTrade: netProfit,
     avgMae: null,
     avgMfe: null,
+  };
+}
+
+function sessionFeature(
+  tradingDate: string,
+  openingRange5Pct: number,
+  closingRange15Pct: number,
+): MarketSessionFeature {
+  return {
+    tradingDate,
+    openingRange5: openingRange5Pct * 100,
+    openingRange5Pct,
+    openingRange10: openingRange5Pct * 120,
+    openingRange10Pct: openingRange5Pct * 1.2,
+    openingRange15: openingRange5Pct * 150,
+    openingRange15Pct: openingRange5Pct * 1.5,
+    closingRange15: closingRange15Pct * 100,
+    closingRange15Pct,
+    sourceStatus: "ok",
+    sourceMessage: null,
   };
 }

@@ -1,3 +1,7 @@
+import {
+  buildSessionFeaturesFromIntradayQuotes,
+  type MarketSessionFeatureInput,
+} from "@/lib/market/session-features";
 import { formatDateKey } from "@/lib/time";
 
 export type MarketBarInput = {
@@ -36,6 +40,22 @@ export async function fetchYahooDailyBars(
   })) as YahooBar[];
 
   return enrichBars(rows);
+}
+
+export async function fetchYahooIntradaySessionFeatures(
+  symbol: string,
+  from: Date,
+  to: Date,
+): Promise<MarketSessionFeatureInput[]> {
+  const YahooFinance = (await import("yahoo-finance2")).default;
+  const yahoo = new YahooFinance();
+  const result = await yahoo.chart(symbol, {
+    interval: "5m",
+    period1: from,
+    period2: to,
+  });
+
+  return buildSessionFeaturesFromIntradayQuotes(result.quotes ?? []);
 }
 
 export function enrichBars(rows: YahooBar[]): MarketBarInput[] {

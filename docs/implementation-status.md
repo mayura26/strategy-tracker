@@ -8,7 +8,7 @@ Last updated: 2026-05-14
 - Auth.js credentials login using `STRATEGY_TRACKER_PASSWORD`; local dev fallback password is `strategy`.
 - `proxy.ts` route protection plus server-side auth checks in mutations.
 - Turso/libSQL database layer using `@libsql/client`; falls back to `strategy-tracker.local.db` when Turso env vars are absent.
-- Runtime SQLite schema initialization plus Drizzle migrations for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, combos, combo versions, and configurable analysis settings.
+- Runtime SQLite schema initialization plus Drizzle migrations for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, intraday session features, combos, combo versions, and configurable analysis settings.
 - Curated bot, bot-mode, and instrument management under `/settings`, including inline edits for names, mode descriptions, Yahoo symbols, timezone, and session start; imports select bot, mode, and instrument from dropdowns.
 - NinjaTrader Strategy Analyzer summary CSV parser for the example export in `examples/`.
 - Import form for missing metadata: bot, bot mode, instrument, run name, timeframe, settings JSON, tags, notes.
@@ -19,9 +19,10 @@ Last updated: 2026-05-14
 - Day-centric charts for equity curve, daily PnL, and daily/session PnL distribution.
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`, with configurable lookback refreshes and visible cache coverage on `/market-data`.
+- Yahoo intraday 5-minute session-feature cache for recent opening-range 5/10/15 and 15:45-16:00 ET closing-range metrics where Yahoo makes intraday history available.
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
 - Run detail TradingView Lightweight Charts instrument view with cached OHLC candlesticks, EMA fast/mid/slow overlays, RSI pane with configurable bands, and daily PnL histogram pane.
-- Run detail predictive regime discovery with adjustable ATR/RSI thresholds, configurable ATR/EMA/RSI periods, configurable RSI bands, previous-day ATR/RSI/EMA features, EMA cross lookback windows, and chronological validation.
+- Run detail predictive regime discovery with adjustable ATR/RSI thresholds, configurable ATR/EMA/RSI periods, configurable RSI bands, previous-day ATR/RSI/EMA features, EMA cross lookback windows, opening-range percentage filters, previous 15:45-16:00 ET closing-range percentage filters, and chronological validation.
 - Analysis job queue with immutable regime-discovery snapshots, local heuristic results, `/analysis` UI, and authenticated `/api/analysis/jobs` route handlers for future Python worker integration.
 - Run detail golden daily drilldown with overlap coverage, filters, outperformance thresholds, visual PnL overlay, delta histogram, and collapsible day table.
 - Combo workbench overlap analytics with all-win, mixed-day, correlation, and component contribution table.
@@ -31,7 +32,7 @@ Last updated: 2026-05-14
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, outperformance summaries, overlap/union daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`; the Next.js app now stores compatible job snapshots and local heuristic results.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.
-- Tests for CSV parsing, import preview, currency parsing, session trading-date assignment, run/daily metrics, comparison analytics, combo analytics, configurable ATR/RSI/EMA helpers, and regime threshold discovery.
+- Tests for CSV parsing, import preview, currency parsing, session trading-date assignment, run/daily metrics, comparison analytics, combo analytics, configurable ATR/RSI/EMA helpers, opening/closing session-range features, and regime threshold discovery.
 
 ## Partially Implemented Or Deferred
 

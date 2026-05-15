@@ -91,6 +91,7 @@ export default async function RunDetailPage({
     run.dailyMetrics,
     run.marketBars,
     analysisSettings,
+    run.marketSessionFeatures,
   );
   const thresholdSuggestions = discoverRegimeThresholds(predictiveDays, {
     atrPeriod: analysisSettings.atrPeriod,
@@ -247,6 +248,10 @@ export default async function RunDetailPage({
                 <th>PnL</th>
                 <th>Prior day</th>
                 <th>Prev ATR{analysisSettings.atrPeriod}</th>
+                <th>OR5%</th>
+                <th>OR10%</th>
+                <th>OR15%</th>
+                <th>Prev close range%</th>
                 <th>Prev RSI</th>
                 <th>RSI band</th>
                 <th>EMA stack</th>
@@ -263,6 +268,10 @@ export default async function RunDetailPage({
                   </td>
                   <td>{day.previousTradingDate ?? "n/a"}</td>
                   <td>{formatNumber(day.previousAtr)}</td>
+                  <td>{formatPercent(day.openingRange5Pct)}</td>
+                  <td>{formatPercent(day.openingRange10Pct)}</td>
+                  <td>{formatPercent(day.openingRange15Pct)}</td>
+                  <td>{formatPercent(day.previousClosingRange15Pct)}</td>
                   <td>{formatNumber(day.previousRsi)}</td>
                   <td>{formatRegimeState(day.previousRsiBand)}</td>
                   <td>{formatRegimeState(day.previousEmaStack)}</td>

@@ -21,6 +21,7 @@ function runAnalysisContractTests() {
   assertEqual(snapshot.trades[0].runId, "run-1");
   assertEqual(snapshot.dailyMetrics[0].runId, "run-1");
   assertEqual(snapshot.marketBars[0].instrument, "ES");
+  assertEqual(snapshot.marketSessionFeatures.length, 0);
   assertEqual(snapshot.predictiveDays[0].previousTradingDate, "2026-01-02");
 
   const result = buildLocalRegimeDiscoveryResult("Test run", [
@@ -91,6 +92,7 @@ function fakeRun(): RunDetail {
         volume: 1000,
       },
     ],
+    marketSessionFeatures: [],
     maxDrawdown: -40,
     name: "Test run",
     netProfit: 125,
@@ -133,8 +135,16 @@ function fakePredictiveDay(
     lossCount: 0,
     maxDrawdown: -40,
     netProfit,
+    openingRange5: null,
+    openingRange5Pct: null,
+    openingRange10: null,
+    openingRange10Pct: null,
+    openingRange15: null,
+    openingRange15Pct: null,
     previousAtr14: 22,
     previousAtr: 22,
+    previousClosingRange15: null,
+    previousClosingRange15Pct: null,
     previousClose: 5010,
     previousEmaCrossFastMid: "cross-up",
     previousEmaCrossFastMidWithinLookback: "cross-up",

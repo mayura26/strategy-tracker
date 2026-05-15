@@ -1,14 +1,26 @@
 import type { DailyRunMetric } from "@/lib/analytics";
-import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
+import type {
+  AnalysisSettings,
+  MarketBar,
+  MarketSessionFeature,
+} from "@/lib/db/repository";
 
 export type EmaStack = "bullish" | "bearish" | "mixed" | null;
 export type EmaCross = "cross-up" | "cross-down" | "none" | null;
 export type RsiBand = "below-lower" | "mid-band" | "above-upper" | null;
 
 export type PredictiveRegimeDay = DailyRunMetric & {
+  openingRange5: number | null;
+  openingRange5Pct: number | null;
+  openingRange10: number | null;
+  openingRange10Pct: number | null;
+  openingRange15: number | null;
+  openingRange15Pct: number | null;
   previousTradingDate: string | null;
   previousAtr: number | null;
   previousAtr14: number | null;
+  previousClosingRange15: number | null;
+  previousClosingRange15Pct: number | null;
   previousRange: number | null;
   previousGap: number | null;
   previousClose: number | null;
@@ -55,8 +67,12 @@ export function buildPredictiveRegimeDays(
   dailyMetrics: DailyRunMetric[],
   marketBars: MarketBar[],
   settings: AnalysisSettings,
+  sessionFeatures: MarketSessionFeature[] = [],
 ): PredictiveRegimeDay[] {
   const indicatorRows = buildMarketIndicatorRows(marketBars, settings);
+  const sessionFeaturesByDate = new Map(
+    sessionFeatures.map((feature) => [feature.tradingDate, feature]),
+  );
   let marketIndex = -1;
 
   return [...dailyMetrics]
@@ -70,12 +86,25 @@ export function buildPredictiveRegimeDays(
       }
 
       const previous = marketIndex >= 0 ? indicatorRows[marketIndex] : null;
+      const currentSessionFeature = sessionFeaturesByDate.get(day.tradingDate);
+      const previousSessionFeature = previous
+        ? sessionFeaturesByDate.get(previous.tradingDate)
+        : null;
 
       return {
         ...day,
+        openingRange5: currentSessionFeature?.openingRange5 ?? null,
+        openingRange5Pct: currentSessionFeature?.openingRange5Pct ?? null,
+        openingRange10: currentSessionFeature?.openingRange10 ?? null,
+        openingRange10Pct: currentSessionFeature?.openingRange10Pct ?? null,
+        openingRange15: currentSessionFeature?.openingRange15 ?? null,
+        openingRange15Pct: currentSessionFeature?.openingRange15Pct ?? null,
         previousTradingDate: previous?.tradingDate ?? null,
         previousAtr: previous?.atr ?? null,
         previousAtr14: previous?.atr ?? null,
+        previousClosingRange15: previousSessionFeature?.closingRange15 ?? null,
+        previousClosingRange15Pct:
+          previousSessionFeature?.closingRange15Pct ?? null,
         previousRange: previous?.range ?? null,
         previousGap: previous?.gap ?? null,
         previousClose: previous?.close ?? null,
@@ -366,7 +395,13 @@ export function findCrossWithinLookback(
 
 export function summarizePredictiveThreshold(
   days: PredictiveRegimeDay[],
-  field: "previousAtr" | "previousRsi",
+  field:
+    | "previousAtr"
+    | "previousRsi"
+    | "openingRange5Pct"
+    | "openingRange10Pct"
+    | "openingRange15Pct"
+    | "previousClosingRange15Pct",
   threshold: number,
   label?: string,
 ) {
@@ -486,6 +521,30 @@ function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function labelForField(field: "previousAtr" | "previousRsi") {
-  return field === "previousAtr" ? "Previous ATR" : "Previous RSI";
+function labelForField(
+  field:
+    | "previousAtr"
+    | "previousRsi"
+    | "openingRange5Pct"
+    | "openingRange10Pct"
+    | "openingRange15Pct"
+    | "previousClosingRange15Pct",
+) {
+  if (field === "previousAtr") {
+    return "Previous ATR";
+  }
+
+  if (field === "previousRsi") {
+    return "Previous RSI";
+  }
+
+  if (field === "previousClosingRange15Pct") {
+    return "Previous closing range 15%";
+  }
+
+  return field === "openingRange5Pct"
+    ? "Opening range 5%"
+    : field === "openingRange10Pct"
+      ? "Opening range 10%"
+      : "Opening range 15%";
 }

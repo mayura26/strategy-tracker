@@ -1,5 +1,9 @@
 import type { DailyRunMetric } from "@/lib/analytics";
-import type { MarketBar, RunDetail } from "@/lib/db/repository";
+import type {
+  MarketBar,
+  MarketSessionFeature,
+  RunDetail,
+} from "@/lib/db/repository";
 import type { NormalizedTradeSummary } from "@/lib/imports/ninjatrader";
 import type { ThresholdSuggestion } from "@/lib/regime-discovery";
 import type { PredictiveRegimeDay } from "@/lib/regime-features";
@@ -23,6 +27,7 @@ export type AnalysisJobRequestSnapshot = {
   trades: Array<AnalysisTradeSnapshot>;
   dailyMetrics: Array<AnalysisDailyMetricSnapshot>;
   marketBars: Array<AnalysisMarketBarSnapshot>;
+  marketSessionFeatures: Array<AnalysisMarketSessionFeatureSnapshot>;
   predictiveDays: Array<AnalysisPredictiveDaySnapshot>;
 };
 
@@ -43,6 +48,10 @@ export type AnalysisDailyMetricSnapshot = DailyRunMetric & {
 };
 
 export type AnalysisMarketBarSnapshot = MarketBar & {
+  instrument: string;
+};
+
+export type AnalysisMarketSessionFeatureSnapshot = MarketSessionFeature & {
   instrument: string;
 };
 
@@ -85,6 +94,10 @@ export function buildRegimeDiscoverySnapshot(
     jobType: "regime-discovery",
     marketBars: run.marketBars.map((bar) => ({
       ...bar,
+      instrument: run.instrumentSymbol,
+    })),
+    marketSessionFeatures: run.marketSessionFeatures.map((feature) => ({
+      ...feature,
       instrument: run.instrumentSymbol,
     })),
     predictiveDays: predictiveDays.map((day) => ({
