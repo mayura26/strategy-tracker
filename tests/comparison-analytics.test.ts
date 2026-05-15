@@ -11,7 +11,11 @@ import {
   summarizeOutcomes,
   summarizeOutperformance,
 } from "@/lib/comparison-analytics";
-import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
+import type {
+  AnalysisSettings,
+  MarketBar,
+  MarketSessionFeature,
+} from "@/lib/db/repository";
 import { assertApprox, assertEqual } from "@/tests/assert";
 
 const distribution = summarizeDistribution([
@@ -219,6 +223,42 @@ assertEqual(
 assertEqual(switchEvaluation.summary.alwaysA.totalPnl, 100, "always A PnL");
 assertEqual(switchEvaluation.summary.alwaysB.totalPnl, 150, "always B PnL");
 
+const openingRangeSwitch = evaluateModeSwitchRule({
+  marketBars: [
+    bar("2026-02-01", 10),
+    bar("2026-02-02", 11),
+    bar("2026-02-03", 12),
+  ],
+  marketSessionFeatures: [
+    sessionFeature("2026-02-02", 0.003),
+    sessionFeature("2026-02-03", 0.009),
+  ],
+  modeADays: [day("2026-02-02", -100, 1), day("2026-02-03", 250, 1)],
+  modeBDays: [day("2026-02-02", 150, 1), day("2026-02-03", -50, 1)],
+  rule: {
+    feature: "opening-range-5-pct",
+    operator: "gte",
+    threshold: 0.005,
+  },
+  settings: switchSettings,
+});
+
+assertEqual(
+  openingRangeSwitch.days[0].selectedMode,
+  "mode-b",
+  "low opening range selects mode B",
+);
+assertEqual(
+  openingRangeSwitch.days[1].selectedMode,
+  "mode-a",
+  "high opening range selects mode A",
+);
+assertEqual(
+  openingRangeSwitch.summary.totalPnl,
+  400,
+  "opening range switch PnL",
+);
+
 const discoveredSwitches = discoverModeSwitchRules({
   marketBars: [
     bar("2026-03-01", 10),
@@ -297,5 +337,24 @@ function bar(tradingDate: string, close: number): MarketBar {
     tradingDate,
     trueRange: 2,
     volume: 100,
+  };
+}
+
+function sessionFeature(
+  tradingDate: string,
+  openingRange5Pct: number,
+): MarketSessionFeature {
+  return {
+    tradingDate,
+    openingRange5: openingRange5Pct * 20_000,
+    openingRange5Pct,
+    openingRange10: openingRange5Pct * 22_000,
+    openingRange10Pct: openingRange5Pct * 1.1,
+    openingRange15: openingRange5Pct * 24_000,
+    openingRange15Pct: openingRange5Pct * 1.2,
+    closingRange15: openingRange5Pct * 10_000,
+    closingRange15Pct: openingRange5Pct / 2,
+    sourceStatus: "manual",
+    sourceMessage: null,
   };
 }

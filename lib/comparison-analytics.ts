@@ -1,6 +1,13 @@
 import type { DailyRunMetric } from "@/lib/analytics";
-import type { AnalysisSettings, MarketBar } from "@/lib/db/repository";
-import { buildPredictiveRegimeDays } from "@/lib/regime-features";
+import type {
+  AnalysisSettings,
+  MarketBar,
+  MarketSessionFeature,
+} from "@/lib/db/repository";
+import {
+  buildPredictiveRegimeDays,
+  type PredictiveRegimeDay,
+} from "@/lib/regime-features";
 
 export type DistributionSummary = {
   count: number;
@@ -69,15 +76,25 @@ export type OutperformanceSummary = {
 };
 
 export type ModeSwitchOperator = "gt" | "gte" | "lt" | "lte";
+export type ModeSwitchFeature =
+  | "previous-rsi"
+  | "previous-atr"
+  | "opening-range-5-pct"
+  | "opening-range-10-pct"
+  | "opening-range-15-pct"
+  | "previous-closing-range-15-pct";
 
 export type ModeSwitchRule = {
+  feature?: ModeSwitchFeature;
   operator: ModeSwitchOperator;
   threshold: number;
 };
 
 export type ModeSwitchDay = {
   tradingDate: string;
-  previousRsi: number;
+  signalValue: number;
+  signalLabel: string;
+  previousRsi: number | null;
   modeAPnl: number;
   modeBPnl: number;
   modeATrades: number;
@@ -270,32 +287,39 @@ export function evaluateModeSwitchRule({
   modeADays,
   modeBDays,
   marketBars,
+  marketSessionFeatures = [],
   settings,
   rule,
 }: {
   modeADays: DailyRunMetric[];
   modeBDays: DailyRunMetric[];
   marketBars: MarketBar[];
+  marketSessionFeatures?: MarketSessionFeature[];
   settings: AnalysisSettings;
   rule: ModeSwitchRule;
 }): ModeSwitchEvaluation {
   const overlapDays = alignDailyPnL(modeADays, modeBDays, "overlap");
+  const feature = rule.feature ?? "previous-rsi";
   const predictiveByDate = new Map(
-    buildPredictiveRegimeDays(modeADays, marketBars, settings).map((day) => [
-      day.tradingDate,
-      day,
-    ]),
+    buildPredictiveRegimeDays(
+      modeADays,
+      marketBars,
+      settings,
+      marketSessionFeatures,
+    ).map((day) => [day.tradingDate, day]),
   );
   const days = overlapDays
     .map((day): ModeSwitchDay | null => {
       const predictiveDay = predictiveByDate.get(day.tradingDate);
-      const previousRsi = predictiveDay?.previousRsi;
+      const signalValue = predictiveDay
+        ? valueForSwitchFeature(predictiveDay, feature)
+        : null;
 
-      if (previousRsi === null || previousRsi === undefined) {
+      if (signalValue === null || signalValue === undefined) {
         return null;
       }
 
-      const selectsModeA = evaluateSwitchCondition(previousRsi, rule);
+      const selectsModeA = evaluateSwitchCondition(signalValue, rule);
       const switchedPnl = selectsModeA ? day.goldenPnl : day.candidatePnl;
       const bestAvailablePnl = Math.max(day.goldenPnl, day.candidatePnl);
 
@@ -306,8 +330,10 @@ export function evaluateModeSwitchRule({
         modeBPnl: day.candidatePnl,
         modeBTrades: day.candidateTrades,
         opportunityCost: bestAvailablePnl - switchedPnl,
-        previousRsi,
+        previousRsi: predictiveDay?.previousRsi ?? null,
         selectedMode: selectsModeA ? "mode-a" : "mode-b",
+        signalLabel: labelForSwitchFeature(feature, settings),
+        signalValue,
         switchedPnl,
         tradingDate: day.tradingDate,
       };
@@ -324,56 +350,75 @@ export function discoverModeSwitchRules({
   modeADays,
   modeBDays,
   marketBars,
+  marketSessionFeatures = [],
   settings,
-  thresholds = defaultSwitchThresholds(),
+  thresholds,
+  features,
   minDays = 5,
   limit = 6,
 }: {
   modeADays: DailyRunMetric[];
   modeBDays: DailyRunMetric[];
   marketBars: MarketBar[];
+  marketSessionFeatures?: MarketSessionFeature[];
   settings: AnalysisSettings;
   thresholds?: number[];
+  features?: ModeSwitchFeature[];
   minDays?: number;
   limit?: number;
 }): ModeSwitchCandidate[] {
   const candidates: ModeSwitchCandidate[] = [];
   const operators: ModeSwitchOperator[] = ["gt", "gte", "lt", "lte"];
+  const switchFeatures =
+    features ??
+    (thresholds ? ["previous-rsi" as const] : defaultSwitchFeatures);
+  const predictiveDays = buildPredictiveRegimeDays(
+    modeADays,
+    marketBars,
+    settings,
+    marketSessionFeatures,
+  );
 
-  for (const threshold of thresholds) {
-    for (const operator of operators) {
-      const rule = { operator, threshold };
-      const evaluation = evaluateModeSwitchRule({
-        marketBars,
-        modeADays,
-        modeBDays,
-        rule,
-        settings,
-      });
+  for (const feature of switchFeatures) {
+    const featureThresholds =
+      thresholds ?? defaultSwitchThresholds(feature, predictiveDays, settings);
 
-      if (
-        evaluation.summary.totalDays < minDays ||
-        evaluation.summary.modeADays === 0 ||
-        evaluation.summary.modeBDays === 0
-      ) {
-        continue;
-      }
+    for (const threshold of featureThresholds) {
+      for (const operator of operators) {
+        const rule = { feature, operator, threshold };
+        const evaluation = evaluateModeSwitchRule({
+          marketBars,
+          marketSessionFeatures,
+          modeADays,
+          modeBDays,
+          rule,
+          settings,
+        });
 
-      const improvementVsModeA =
-        evaluation.summary.totalPnl - evaluation.summary.alwaysA.totalPnl;
-      const improvementVsModeB =
-        evaluation.summary.totalPnl - evaluation.summary.alwaysB.totalPnl;
+        if (
+          evaluation.summary.totalDays < minDays ||
+          evaluation.summary.modeADays === 0 ||
+          evaluation.summary.modeBDays === 0
+        ) {
+          continue;
+        }
 
-      candidates.push({
-        evaluation,
-        improvementVsBestAlways: Math.min(
+        const improvementVsModeA =
+          evaluation.summary.totalPnl - evaluation.summary.alwaysA.totalPnl;
+        const improvementVsModeB =
+          evaluation.summary.totalPnl - evaluation.summary.alwaysB.totalPnl;
+
+        candidates.push({
+          evaluation,
+          improvementVsBestAlways: Math.min(
+            improvementVsModeA,
+            improvementVsModeB,
+          ),
           improvementVsModeA,
           improvementVsModeB,
-        ),
-        improvementVsModeA,
-        improvementVsModeB,
-        rule,
-      });
+          rule,
+        });
+      }
     }
   }
 
@@ -407,6 +452,60 @@ export function evaluateSwitchCondition(value: number, rule: ModeSwitchRule) {
   }
 
   return value <= rule.threshold;
+}
+
+export function labelForSwitchFeature(
+  feature: ModeSwitchFeature,
+  settings: AnalysisSettings,
+) {
+  if (feature === "previous-rsi") {
+    return `Previous RSI${settings.rsiPeriod}`;
+  }
+
+  if (feature === "previous-atr") {
+    return `Previous ATR${settings.atrPeriod}`;
+  }
+
+  if (feature === "opening-range-5-pct") {
+    return "Opening range 5%";
+  }
+
+  if (feature === "opening-range-10-pct") {
+    return "Opening range 10%";
+  }
+
+  if (feature === "opening-range-15-pct") {
+    return "Opening range 15%";
+  }
+
+  return "Previous 15:45-16:00 range%";
+}
+
+export function valueForSwitchFeature(
+  day: PredictiveRegimeDay,
+  feature: ModeSwitchFeature,
+) {
+  if (feature === "previous-rsi") {
+    return day.previousRsi;
+  }
+
+  if (feature === "previous-atr") {
+    return day.previousAtr;
+  }
+
+  if (feature === "opening-range-5-pct") {
+    return day.openingRange5Pct;
+  }
+
+  if (feature === "opening-range-10-pct") {
+    return day.openingRange10Pct;
+  }
+
+  if (feature === "opening-range-15-pct") {
+    return day.openingRange15Pct;
+  }
+
+  return day.previousClosingRange15Pct;
 }
 
 export function alignDailyPnL(
@@ -507,8 +606,47 @@ function calculateDrawdown(values: number[]) {
   return maxDrawdown;
 }
 
-function defaultSwitchThresholds() {
-  return Array.from({ length: 17 }, (_, index) => 10 + index * 5);
+const defaultSwitchFeatures: ModeSwitchFeature[] = [
+  "previous-rsi",
+  "previous-atr",
+  "opening-range-5-pct",
+  "opening-range-10-pct",
+  "opening-range-15-pct",
+  "previous-closing-range-15-pct",
+];
+
+function defaultSwitchThresholds(
+  feature: ModeSwitchFeature,
+  days: PredictiveRegimeDay[],
+  settings: AnalysisSettings,
+) {
+  if (feature === "previous-rsi") {
+    return [
+      settings.rsiLowerBand,
+      50,
+      settings.rsiUpperBand,
+      ...Array.from({ length: 17 }, (_, index) => 10 + index * 5),
+    ].filter(uniqueFinite);
+  }
+
+  const values = days
+    .map((day) => valueForSwitchFeature(day, feature))
+    .filter(
+      (value): value is number => value !== null && Number.isFinite(value),
+    )
+    .sort((left, right) => left - right);
+
+  if (values.length === 0) {
+    return [];
+  }
+
+  return [0.25, 0.33, 0.5, 0.67, 0.75]
+    .map((percentile) => quantile(values, percentile))
+    .filter(uniqueFinite);
+}
+
+function uniqueFinite(value: number, index: number, values: number[]) {
+  return Number.isFinite(value) && values.indexOf(value) === index;
 }
 
 export function filterAlignedDays(

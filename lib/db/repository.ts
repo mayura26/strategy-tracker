@@ -104,6 +104,7 @@ export type ComparisonGroup = {
   instrumentSymbol: string;
   timeframe: string;
   marketBars: MarketBar[];
+  marketSessionFeatures: MarketSessionFeature[];
   savedSwitchRules: SavedSwitchRule[];
   runs: ComparisonRun[];
 };
@@ -841,6 +842,9 @@ export async function listComparisonGroups(): Promise<ComparisonGroup[]> {
       instrumentId: firstRun.instrumentId,
       instrumentSymbol: firstRun.instrumentSymbol,
       marketBars: await listMarketBarsForInstrument(firstRun.instrumentId),
+      marketSessionFeatures: await listMarketSessionFeaturesForInstrument(
+        firstRun.instrumentId,
+      ),
       runs: scopedRuns,
       savedSwitchRules: await listSavedSwitchRulesForScope({
         botId: firstRun.botId,

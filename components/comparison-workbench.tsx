@@ -22,8 +22,10 @@ import {
   discoverModeSwitchRules,
   evaluateModeSwitchRule,
   filterAlignedDays,
+  labelForSwitchFeature,
   type ModeSwitchCandidate,
   type ModeSwitchDay,
+  type ModeSwitchFeature,
   type ModeSwitchMetrics,
   type ModeSwitchOperator,
   summarizeDistribution,
@@ -475,37 +477,54 @@ function ModeSwitchLab({
   analysisSettings: AnalysisSettings;
 }) {
   const [operator, setOperator] = useState<ModeSwitchOperator>("gt");
-  const [threshold, setThreshold] = useState(analysisSettings.rsiUpperBand);
+  const [feature, setFeature] = useState<ModeSwitchFeature>("previous-rsi");
+  const [threshold, setThreshold] = useState(
+    defaultDisplayThreshold("previous-rsi", analysisSettings),
+  );
   const [ruleName, setRuleName] = useState("");
+  const ruleThreshold = toRuleThreshold(feature, threshold);
   const evaluation = useMemo(
     () =>
       evaluateModeSwitchRule({
         marketBars,
+        marketSessionFeatures: group.marketSessionFeatures,
         modeADays: modeA.dailyMetrics,
         modeBDays: modeB.dailyMetrics,
-        rule: { operator, threshold },
+        rule: { feature, operator, threshold: ruleThreshold },
         settings: analysisSettings,
       }),
-    [modeA, modeB, marketBars, analysisSettings, operator, threshold],
+    [
+      modeA,
+      modeB,
+      group.marketSessionFeatures,
+      marketBars,
+      analysisSettings,
+      feature,
+      operator,
+      ruleThreshold,
+    ],
   );
   const candidates = useMemo(
     () =>
       discoverModeSwitchRules({
         marketBars,
+        marketSessionFeatures: group.marketSessionFeatures,
         modeADays: modeA.dailyMetrics,
         modeBDays: modeB.dailyMetrics,
         settings: analysisSettings,
       }),
-    [modeA, modeB, marketBars, analysisSettings],
+    [modeA, modeB, group.marketSessionFeatures, marketBars, analysisSettings],
   );
-  const ruleText = `Previous RSI${analysisSettings.rsiPeriod} ${operatorLabel(
-    operator,
-  )} ${threshold}`;
+  const featureLabel = labelForSwitchFeature(feature, analysisSettings);
+  const ruleText = `${featureLabel} ${operatorLabel(operator)} ${formatSwitchThreshold(
+    feature,
+    ruleThreshold,
+  )}`;
   const ruleJson = JSON.stringify({
-    indicator: "previous-rsi",
+    feature,
+    indicator: feature,
     operator,
-    rsiPeriod: analysisSettings.rsiPeriod,
-    threshold,
+    threshold: ruleThreshold,
   });
   const metricsJson = JSON.stringify({
     modeAName: modeA.name,
@@ -527,7 +546,27 @@ function ModeSwitchLab({
             is treated as zero exposure.
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-[120px_140px]">
+        <div className="grid gap-2 sm:grid-cols-[220px_120px_140px]">
+          <label className="grid gap-1">
+            <span className="label-text">Signal</span>
+            <select
+              className="input min-h-10"
+              onChange={(event) => {
+                const nextFeature = event.target.value as ModeSwitchFeature;
+                setFeature(nextFeature);
+                setThreshold(
+                  defaultDisplayThreshold(nextFeature, analysisSettings),
+                );
+              }}
+              value={feature}
+            >
+              {switchFeatureOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label(analysisSettings)}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="grid gap-1">
             <span className="label-text">Condition</span>
             <select
@@ -544,13 +583,14 @@ function ModeSwitchLab({
             </select>
           </label>
           <label className="grid gap-1">
-            <span className="label-text">RSI threshold</span>
+            <span className="label-text">
+              {isPercentSwitchFeature(feature) ? "Threshold %" : "Threshold"}
+            </span>
             <input
               className="input min-h-10"
-              max="100"
               min="0"
               onChange={(event) => setThreshold(Number(event.target.value))}
-              step="1"
+              step={isPercentSwitchFeature(feature) ? "0.01" : "1"}
               type="number"
               value={threshold}
             />
@@ -576,8 +616,8 @@ function ModeSwitchLab({
               {evaluation.summary.totalDays} routed days
             </span>
             <span className="rounded-sm border border-slate-700 bg-slate-900 px-2 py-1 text-slate-300">
-              {evaluation.summary.excludedNoSignalDays} excluded for no prior
-              RSI
+              {evaluation.summary.excludedNoSignalDays} excluded for missing
+              signal
             </span>
           </div>
 
@@ -623,10 +663,15 @@ function ModeSwitchLab({
           />
 
           <SwitchCandidateStrip
+            analysisSettings={analysisSettings}
             candidates={candidates}
             onApply={(candidate) => {
+              const candidateFeature = candidate.rule.feature ?? "previous-rsi";
+              setFeature(candidateFeature);
               setOperator(candidate.rule.operator);
-              setThreshold(candidate.rule.threshold);
+              setThreshold(
+                fromRuleThreshold(candidateFeature, candidate.rule.threshold),
+              );
             }}
           />
 
@@ -761,6 +806,7 @@ function SavedSwitchRulePanel({
 
 function SavedSwitchRuleRow({ rule }: { rule: SavedSwitchRule }) {
   const parsedRule = parseJson<{
+    feature?: ModeSwitchFeature;
     operator?: ModeSwitchOperator;
     threshold?: number;
     rsiPeriod?: number;
@@ -777,9 +823,16 @@ function SavedSwitchRuleRow({ rule }: { rule: SavedSwitchRule }) {
           <p className="strong-text font-semibold">{rule.name}</p>
           <p className="quiet-text mt-1 text-xs">
             {metrics?.ruleText ??
-              `Previous RSI${parsedRule?.rsiPeriod ?? ""} ${operatorLabel(
+              `${parsedRule?.feature ?? "previous-rsi"} ${operatorLabel(
                 parsedRule?.operator ?? "gt",
-              )} ${parsedRule?.threshold ?? "n/a"}`}
+              )} ${
+                parsedRule?.threshold === undefined
+                  ? "n/a"
+                  : formatSwitchThreshold(
+                      parsedRule.feature ?? "previous-rsi",
+                      parsedRule.threshold,
+                    )
+              }`}
           </p>
         </div>
         <form action={deleteSwitchRuleAction}>
@@ -806,9 +859,11 @@ function SavedSwitchRuleRow({ rule }: { rule: SavedSwitchRule }) {
 
 function SwitchCandidateStrip({
   candidates,
+  analysisSettings,
   onApply,
 }: {
   candidates: ModeSwitchCandidate[];
+  analysisSettings: AnalysisSettings;
   onApply: (candidate: ModeSwitchCandidate) => void;
 }) {
   return (
@@ -835,8 +890,15 @@ function SwitchCandidateStrip({
               type="button"
             >
               <span className="strong-text block font-semibold">
-                RSI {operatorLabel(candidate.rule.operator)}{" "}
-                {candidate.rule.threshold}
+                {labelForSwitchFeature(
+                  candidate.rule.feature ?? "previous-rsi",
+                  analysisSettings,
+                )}{" "}
+                {operatorLabel(candidate.rule.operator)}{" "}
+                {formatSwitchThreshold(
+                  candidate.rule.feature ?? "previous-rsi",
+                  candidate.rule.threshold,
+                )}
               </span>
               <span className={toneClass(candidate.improvementVsBestAlways)}>
                 {formatCurrency(candidate.improvementVsBestAlways)} vs best
@@ -935,7 +997,7 @@ function RoutedPnlChart({
             <div
               className="relative h-52 min-w-0"
               key={day.tradingDate}
-              title={`${day.tradingDate}: RSI ${formatNumber(day.previousRsi)}, ${day.selectedMode === "mode-a" ? modeAName : modeBName} ${formatCurrency(day.switchedPnl)}`}
+              title={`${day.tradingDate}: ${day.signalLabel} ${formatNumber(day.signalValue)}, ${day.selectedMode === "mode-a" ? modeAName : modeBName} ${formatCurrency(day.switchedPnl)}`}
             >
               <div className="absolute top-1/2 h-px w-full bg-slate-700/70" />
               <div
@@ -1071,7 +1133,7 @@ function ModeSwitchDayTable({
             <thead>
               <tr>
                 <th>Day</th>
-                <th>Prev RSI</th>
+                <th>Signal</th>
                 <th>Selected</th>
                 <th>Mode A</th>
                 <th>Mode B</th>
@@ -1083,7 +1145,12 @@ function ModeSwitchDayTable({
               {sortedDays.map((day) => (
                 <tr key={day.tradingDate}>
                   <td>{day.tradingDate}</td>
-                  <td>{formatNumber(day.previousRsi)}</td>
+                  <td>
+                    <span className="quiet-text block text-xs">
+                      {day.signalLabel}
+                    </span>
+                    {formatNumber(day.signalValue)}
+                  </td>
                   <td>
                     <span
                       className={
@@ -1131,6 +1198,88 @@ function operatorLabel(operator: ModeSwitchOperator) {
   }
 
   return "<=";
+}
+
+const switchFeatureOptions: Array<{
+  value: ModeSwitchFeature;
+  label: (settings: AnalysisSettings) => string;
+}> = [
+  {
+    value: "previous-rsi",
+    label: (settings) => `Previous RSI${settings.rsiPeriod}`,
+  },
+  {
+    value: "previous-atr",
+    label: (settings) => `Previous ATR${settings.atrPeriod}`,
+  },
+  {
+    value: "opening-range-5-pct",
+    label: () => "Opening range 5%",
+  },
+  {
+    value: "opening-range-10-pct",
+    label: () => "Opening range 10%",
+  },
+  {
+    value: "opening-range-15-pct",
+    label: () => "Opening range 15%",
+  },
+  {
+    value: "previous-closing-range-15-pct",
+    label: () => "Previous 15:45-16:00 range%",
+  },
+];
+
+function isPercentSwitchFeature(feature: ModeSwitchFeature) {
+  return (
+    feature === "opening-range-5-pct" ||
+    feature === "opening-range-10-pct" ||
+    feature === "opening-range-15-pct" ||
+    feature === "previous-closing-range-15-pct"
+  );
+}
+
+function defaultDisplayThreshold(
+  feature: ModeSwitchFeature,
+  settings: AnalysisSettings,
+) {
+  if (feature === "previous-rsi") {
+    return settings.rsiUpperBand;
+  }
+
+  if (feature === "previous-atr") {
+    return settings.atrPeriod;
+  }
+
+  if (feature === "opening-range-5-pct") {
+    return 0.25;
+  }
+
+  if (feature === "opening-range-10-pct") {
+    return 0.4;
+  }
+
+  if (feature === "opening-range-15-pct") {
+    return 0.5;
+  }
+
+  return 0.25;
+}
+
+function toRuleThreshold(feature: ModeSwitchFeature, displayThreshold: number) {
+  return isPercentSwitchFeature(feature)
+    ? displayThreshold / 100
+    : displayThreshold;
+}
+
+function fromRuleThreshold(feature: ModeSwitchFeature, threshold: number) {
+  return isPercentSwitchFeature(feature) ? threshold * 100 : threshold;
+}
+
+function formatSwitchThreshold(feature: ModeSwitchFeature, threshold: number) {
+  return isPercentSwitchFeature(feature)
+    ? `${formatNumber(threshold * 100, 2)}%`
+    : formatNumber(threshold, 2);
 }
 
 function cumulative(values: number[]) {
