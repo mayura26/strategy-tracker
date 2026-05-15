@@ -13,10 +13,12 @@ import {
   createInstrument,
   deleteRuns,
   deleteSavedCombo,
+  deleteSwitchRule,
   getInstrument,
   insertImportedRun,
   listInstruments,
   saveCombo,
+  saveSwitchRule,
   setGoldenRun,
   updateAnalysisSettings,
   updateBot,
@@ -304,6 +306,30 @@ export async function saveComboAction(formData: FormData) {
   revalidatePath("/combos");
 }
 
+export async function saveSwitchRuleAction(formData: FormData) {
+  await requireUser();
+
+  const name = String(formData.get("name") ?? "").trim();
+  const ruleJson = String(formData.get("ruleJson") ?? "");
+  const metricsJson = String(formData.get("metricsJson") ?? "");
+
+  JSON.parse(ruleJson);
+  JSON.parse(metricsJson);
+
+  await saveSwitchRule({
+    botId: String(formData.get("botId") ?? ""),
+    instrumentId: String(formData.get("instrumentId") ?? ""),
+    timeframe: String(formData.get("timeframe") ?? ""),
+    modeARunId: String(formData.get("modeARunId") ?? ""),
+    modeBRunId: String(formData.get("modeBRunId") ?? ""),
+    name: name || "Untitled switch rule",
+    ruleJson,
+    metricsJson,
+  });
+
+  revalidatePath("/compare");
+}
+
 export async function updateComboAction(formData: FormData) {
   await requireUser();
 
@@ -355,6 +381,19 @@ export async function deleteComboAction(formData: FormData) {
   await deleteSavedCombo(id);
   revalidatePath("/combos");
   redirect("/combos");
+}
+
+export async function deleteSwitchRuleAction(formData: FormData) {
+  await requireUser();
+
+  const id = String(formData.get("switchRuleId") ?? "").trim();
+
+  if (!id) {
+    throw new Error("Missing switch rule id.");
+  }
+
+  await deleteSwitchRule(id);
+  revalidatePath("/compare");
 }
 
 export async function refreshMarketDataAction(formData: FormData) {

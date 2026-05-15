@@ -5,11 +5,14 @@ import {
   ChevronDown,
   CircleDot,
   Download,
+  Save,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { deleteSwitchRuleAction, saveSwitchRuleAction } from "@/app/actions";
 import {
   type AlignedDay,
   type AlignmentMode,
@@ -31,6 +34,7 @@ import type {
   AnalysisSettings,
   ComparisonGroup,
   ComparisonRun,
+  SavedSwitchRule,
 } from "@/lib/db/repository";
 import {
   formatCurrency,
@@ -247,6 +251,7 @@ export function ComparisonWorkbench({
 
       <ModeSwitchLab
         analysisSettings={analysisSettings}
+        group={group}
         marketBars={group.marketBars}
         modeA={golden}
         modeB={candidate}
@@ -459,16 +464,19 @@ function countSingleRunDays(
 function ModeSwitchLab({
   modeA,
   modeB,
+  group,
   marketBars,
   analysisSettings,
 }: {
   modeA: ComparisonRun;
   modeB: ComparisonRun;
+  group: ComparisonGroup;
   marketBars: ComparisonGroup["marketBars"];
   analysisSettings: AnalysisSettings;
 }) {
   const [operator, setOperator] = useState<ModeSwitchOperator>("gt");
   const [threshold, setThreshold] = useState(analysisSettings.rsiUpperBand);
+  const [ruleName, setRuleName] = useState("");
   const evaluation = useMemo(
     () =>
       evaluateModeSwitchRule({
@@ -493,6 +501,21 @@ function ModeSwitchLab({
   const ruleText = `Previous RSI${analysisSettings.rsiPeriod} ${operatorLabel(
     operator,
   )} ${threshold}`;
+  const ruleJson = JSON.stringify({
+    indicator: "previous-rsi",
+    operator,
+    rsiPeriod: analysisSettings.rsiPeriod,
+    threshold,
+  });
+  const metricsJson = JSON.stringify({
+    modeAName: modeA.name,
+    modeBName: modeB.name,
+    ruleText,
+    summary: evaluation.summary,
+  });
+  const savedRulesForPair = group.savedSwitchRules.filter(
+    (rule) => rule.modeARunId === modeA.id && rule.modeBRunId === modeB.id,
+  );
 
   return (
     <section className="panel">
@@ -588,6 +611,17 @@ function ModeSwitchLab({
             />
           </div>
 
+          <SavedSwitchRulePanel
+            group={group}
+            metricsJson={metricsJson}
+            modeA={modeA}
+            modeB={modeB}
+            ruleJson={ruleJson}
+            ruleName={ruleName}
+            savedRules={savedRulesForPair}
+            setRuleName={setRuleName}
+          />
+
           <SwitchCandidateStrip
             candidates={candidates}
             onApply={(candidate) => {
@@ -653,6 +687,118 @@ function SwitchOutcomeCard({
           Missed wins: {modeAName} {summary.missedWinModeA}, {modeBName}{" "}
           {summary.missedWinModeB}
         </span>
+      </div>
+    </div>
+  );
+}
+
+function SavedSwitchRulePanel({
+  group,
+  modeA,
+  modeB,
+  ruleName,
+  ruleJson,
+  metricsJson,
+  savedRules,
+  setRuleName,
+}: {
+  group: ComparisonGroup;
+  modeA: ComparisonRun;
+  modeB: ComparisonRun;
+  ruleName: string;
+  ruleJson: string;
+  metricsJson: string;
+  savedRules: SavedSwitchRule[];
+  setRuleName: (value: string) => void;
+}) {
+  return (
+    <div className="subtle-card grid gap-4 p-4 xl:grid-cols-[1fr_1.2fr]">
+      <form action={saveSwitchRuleAction} className="grid gap-3">
+        <div className="chart-heading">
+          <span>Save switch rule</span>
+        </div>
+        <input name="botId" type="hidden" value={group.botId} />
+        <input name="instrumentId" type="hidden" value={group.instrumentId} />
+        <input name="timeframe" type="hidden" value={group.timeframe} />
+        <input name="modeARunId" type="hidden" value={modeA.id} />
+        <input name="modeBRunId" type="hidden" value={modeB.id} />
+        <input name="ruleJson" type="hidden" value={ruleJson} />
+        <input name="metricsJson" type="hidden" value={metricsJson} />
+        <label className="grid gap-2">
+          <span className="label-text">Rule name</span>
+          <input
+            className="input"
+            name="name"
+            onChange={(event) => setRuleName(event.target.value)}
+            placeholder={`${modeA.botModeName ?? "Mode A"} high-RSI router`}
+            value={ruleName}
+          />
+        </label>
+        <button className="primary-button w-fit" type="submit">
+          <Save aria-hidden size={15} />
+          Save rule
+        </button>
+      </form>
+      <div>
+        <div className="chart-heading">
+          <span>Saved for this pair</span>
+        </div>
+        {savedRules.length === 0 ? (
+          <p className="quiet-text text-sm">
+            No saved switch rules for this exact Mode A / Mode B pair yet.
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {savedRules.map((rule) => (
+              <SavedSwitchRuleRow key={rule.id} rule={rule} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SavedSwitchRuleRow({ rule }: { rule: SavedSwitchRule }) {
+  const parsedRule = parseJson<{
+    operator?: ModeSwitchOperator;
+    threshold?: number;
+    rsiPeriod?: number;
+  }>(rule.ruleJson);
+  const metrics = parseJson<{
+    ruleText?: string;
+    summary?: { totalPnl?: number; winDayRate?: number; maxDrawdown?: number };
+  }>(rule.metricsJson);
+
+  return (
+    <div className="rounded-sm border border-slate-800 bg-slate-950/40 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="strong-text font-semibold">{rule.name}</p>
+          <p className="quiet-text mt-1 text-xs">
+            {metrics?.ruleText ??
+              `Previous RSI${parsedRule?.rsiPeriod ?? ""} ${operatorLabel(
+                parsedRule?.operator ?? "gt",
+              )} ${parsedRule?.threshold ?? "n/a"}`}
+          </p>
+        </div>
+        <form action={deleteSwitchRuleAction}>
+          <input name="switchRuleId" type="hidden" value={rule.id} />
+          <button
+            className="ghost-button min-h-8 px-2 text-rose-200"
+            title="Delete saved switch rule"
+            type="submit"
+          >
+            <Trash2 aria-hidden size={14} />
+          </button>
+        </form>
+      </div>
+      <div className="quiet-text mt-3 grid grid-cols-3 gap-2 text-xs">
+        <span className={toneClass(metrics?.summary?.totalPnl)}>
+          {formatCurrency(metrics?.summary?.totalPnl)}
+        </span>
+        <span>Win {formatPercent(metrics?.summary?.winDayRate)}</span>
+        <span>DD {formatCurrency(metrics?.summary?.maxDrawdown)}</span>
       </div>
     </div>
   );
@@ -1470,6 +1616,14 @@ function formatCompactCurrency(value: number) {
   }
 
   return `${sign}$${formatNumber(abs, 0)}`;
+}
+
+function parseJson<T>(value: string): T | null {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
 }
 
 function Metric({

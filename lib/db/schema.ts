@@ -250,6 +250,38 @@ export const combos = sqliteTable("combos", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const savedSwitchRules = sqliteTable(
+  "saved_switch_rules",
+  {
+    id: text("id").primaryKey(),
+    botId: text("bot_id")
+      .notNull()
+      .references(() => bots.id),
+    instrumentId: text("instrument_id")
+      .notNull()
+      .references(() => instruments.id),
+    timeframe: text("timeframe").notNull(),
+    modeARunId: text("mode_a_run_id")
+      .notNull()
+      .references(() => runs.id),
+    modeBRunId: text("mode_b_run_id")
+      .notNull()
+      .references(() => runs.id),
+    name: text("name").notNull(),
+    ruleJson: text("rule_json").notNull(),
+    metricsJson: text("metrics_json").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    scopeIndex: index("saved_switch_rules_scope_idx").on(
+      table.botId,
+      table.instrumentId,
+      table.timeframe,
+    ),
+  }),
+);
+
 export const comboVersions = sqliteTable(
   "combo_versions",
   {

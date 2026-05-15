@@ -98,11 +98,28 @@ export type ComparisonRun = RunSummary & {
 
 export type ComparisonGroup = {
   scope: string;
+  botId: string;
   botName: string;
+  instrumentId: string;
   instrumentSymbol: string;
   timeframe: string;
   marketBars: MarketBar[];
+  savedSwitchRules: SavedSwitchRule[];
   runs: ComparisonRun[];
+};
+
+export type SavedSwitchRule = {
+  id: string;
+  botId: string;
+  instrumentId: string;
+  timeframe: string;
+  modeARunId: string;
+  modeBRunId: string;
+  name: string;
+  ruleJson: string;
+  metricsJson: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type MarketRow = {
@@ -819,16 +836,88 @@ export async function listComparisonGroups(): Promise<ComparisonGroup[]> {
     const firstRun = scopedRuns[0];
 
     comparisonGroups.push({
+      botId: firstRun.botId,
       botName: firstRun.botName,
+      instrumentId: firstRun.instrumentId,
       instrumentSymbol: firstRun.instrumentSymbol,
       marketBars: await listMarketBarsForInstrument(firstRun.instrumentId),
       runs: scopedRuns,
+      savedSwitchRules: await listSavedSwitchRulesForScope({
+        botId: firstRun.botId,
+        instrumentId: firstRun.instrumentId,
+        timeframe: firstRun.timeframe,
+      }),
       scope,
       timeframe: firstRun.timeframe,
     });
   }
 
   return comparisonGroups;
+}
+
+export async function saveSwitchRule(input: {
+  botId: string;
+  instrumentId: string;
+  timeframe: string;
+  modeARunId: string;
+  modeBRunId: string;
+  name: string;
+  ruleJson: string;
+  metricsJson: string;
+}) {
+  await ensureSchema();
+  JSON.parse(input.ruleJson);
+  JSON.parse(input.metricsJson);
+
+  const now = new Date().toISOString();
+
+  await client.execute({
+    sql: `INSERT INTO saved_switch_rules (
+      id, bot_id, instrument_id, timeframe, mode_a_run_id, mode_b_run_id,
+      name, rule_json, metrics_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      crypto.randomUUID(),
+      input.botId,
+      input.instrumentId,
+      input.timeframe,
+      input.modeARunId,
+      input.modeBRunId,
+      input.name.trim() || "Untitled switch rule",
+      input.ruleJson,
+      input.metricsJson,
+      now,
+      now,
+    ],
+  });
+}
+
+export async function deleteSwitchRule(id: string) {
+  await ensureSchema();
+
+  await client.execute({
+    sql: "DELETE FROM saved_switch_rules WHERE id = ?",
+    args: [id],
+  });
+}
+
+export async function listSavedSwitchRulesForScope(input: {
+  botId: string;
+  instrumentId: string;
+  timeframe: string;
+}): Promise<SavedSwitchRule[]> {
+  await ensureSchema();
+
+  const result = await client.execute({
+    sql: `SELECT id, bot_id, instrument_id, timeframe, mode_a_run_id,
+        mode_b_run_id, name, rule_json, metrics_json, created_at, updated_at
+      FROM saved_switch_rules
+      WHERE bot_id = ? AND instrument_id = ? AND timeframe = ?
+      ORDER BY created_at DESC`,
+    args: [input.botId, input.instrumentId, input.timeframe],
+  });
+
+  return result.rows.map(savedSwitchRuleFromRow);
 }
 
 export async function saveCombo(input: {
@@ -1636,6 +1725,22 @@ function savedComboFromRow(row: Record<string, unknown>): SavedCombo {
     name: String(row.name),
     description: String(row.description),
     configJson: String(row.config_json),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function savedSwitchRuleFromRow(row: Record<string, unknown>): SavedSwitchRule {
+  return {
+    id: String(row.id),
+    botId: String(row.bot_id),
+    instrumentId: String(row.instrument_id),
+    timeframe: String(row.timeframe),
+    modeARunId: String(row.mode_a_run_id),
+    modeBRunId: String(row.mode_b_run_id),
+    name: String(row.name),
+    ruleJson: String(row.rule_json),
+    metricsJson: String(row.metrics_json),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };

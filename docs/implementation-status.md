@@ -8,7 +8,7 @@ Last updated: 2026-05-14
 - Auth.js credentials login using `STRATEGY_TRACKER_PASSWORD`; local dev fallback password is `strategy`.
 - `proxy.ts` route protection plus server-side auth checks in mutations.
 - Turso/libSQL database layer using `@libsql/client`; falls back to `strategy-tracker.local.db` when Turso env vars are absent.
-- Runtime SQLite schema initialization plus Drizzle migrations for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, intraday session features, combos, combo versions, and configurable analysis settings.
+- Runtime SQLite schema initialization plus Drizzle migrations for bots, bot modes, instruments, runs, imports, trade summaries, daily metrics, golden baselines, market bars, intraday session features, saved switch rules, combos, combo versions, and configurable analysis settings.
 - Curated bot, bot-mode, and instrument management under `/settings`, including inline edits for names, mode descriptions, Yahoo symbols, timezone, and session start; imports select bot, mode, and instrument from dropdowns.
 - NinjaTrader Strategy Analyzer summary CSV parser for the example export in `examples/`.
 - Import form for missing metadata: bot, bot mode, instrument, run name, timeframe, settings JSON, tags, notes.
@@ -30,6 +30,7 @@ Last updated: 2026-05-14
 - Saved combo library and detail pages with weighted source runs, combo metrics, missing-run warnings, contribution days, and version history snapshots.
 - Visual comparison workspace with scoped run selection, overlap-only or union date handling, selectable full-run vs selected-period core metric bars, outperformance-vs counts with material-delta filtering, CSV exports for visible/material day lists, filtered daily PnL overlays, green/red day summaries, daily PnL histograms, and daily/session box and dot plots.
 - Compare mode switch lab for same-bot cross-mode routing, using prior-session RSI threshold rules to simulate one-mode-per-day switched PnL with non-selected modes treated as zero exposure.
+- Saved compare switch rules for preserving promising Mode A/Mode B routing rules with evaluation snapshots.
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, outperformance summaries, overlap/union daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`; the Next.js app now stores compatible job snapshots and local heuristic results.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.

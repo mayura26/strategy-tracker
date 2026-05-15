@@ -200,6 +200,23 @@ async function initializeSchema() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS saved_switch_rules (
+      id TEXT PRIMARY KEY,
+      bot_id TEXT NOT NULL REFERENCES bots(id),
+      instrument_id TEXT NOT NULL REFERENCES instruments(id),
+      timeframe TEXT NOT NULL,
+      mode_a_run_id TEXT NOT NULL REFERENCES runs(id),
+      mode_b_run_id TEXT NOT NULL REFERENCES runs(id),
+      name TEXT NOT NULL,
+      rule_json TEXT NOT NULL,
+      metrics_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS saved_switch_rules_scope_idx
+      ON saved_switch_rules(bot_id, instrument_id, timeframe);
+
     CREATE TABLE IF NOT EXISTS combo_versions (
       id TEXT PRIMARY KEY,
       combo_id TEXT NOT NULL,
