@@ -20,6 +20,7 @@ Last updated: 2026-05-14
 - Metrics for net PnL, win rate, profit factor, expectancy, drawdown, MAE/MFE/ETD, daily aggregation, and golden deltas.
 - Yahoo futures daily-bar fetch/cache path via `yahoo-finance2`, with configurable lookback refreshes and visible cache coverage on `/market-data`.
 - Yahoo intraday 5-minute session-feature cache for recent opening-range 5/10/15 and 15:45-16:00 ET closing-range metrics where Yahoo makes intraday history available.
+- Manual `/market-data` CSV backfill for opening-range and close-range session features, useful when Yahoo intraday history does not cover older strategy runs.
 - Run detail market-regime analysis that joins daily PnL to cached ATR/range/gap/close values.
 - Run detail TradingView Lightweight Charts instrument view with cached OHLC candlesticks, EMA fast/mid/slow overlays, RSI pane with configurable bands, and daily PnL histogram pane.
 - Run detail predictive regime discovery with adjustable ATR/RSI thresholds, configurable ATR/EMA/RSI periods, configurable RSI bands, previous-day ATR/RSI/EMA features, EMA cross lookback windows, opening-range percentage filters, previous 15:45-16:00 ET closing-range percentage filters, and chronological validation.
@@ -32,7 +33,7 @@ Last updated: 2026-05-14
 - Comparison analytics helpers for distribution quartiles, whiskers, outliers, daily histograms, outcome summaries, outperformance summaries, overlap/union daily alignment, similarity filtering, and day buckets.
 - Python analysis service contract in `docs/python-analysis-service.md`; the Next.js app now stores compatible job snapshots and local heuristic results.
 - Scheduled-task friendly JSON database backup script via `npm run backup:db`, writing to `BACKUP_DIR`.
-- Tests for CSV parsing, import preview, currency parsing, session trading-date assignment, run/daily metrics, comparison analytics, combo analytics, configurable ATR/RSI/EMA helpers, opening/closing session-range features, and regime threshold discovery.
+- Tests for CSV parsing, import preview, currency parsing, session trading-date assignment, run/daily metrics, comparison analytics, combo analytics, configurable ATR/RSI/EMA helpers, opening/closing session-range features, manual session-feature import, and regime threshold discovery.
 
 ## Partially Implemented Or Deferred
 

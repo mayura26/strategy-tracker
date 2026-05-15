@@ -415,6 +415,44 @@ export async function refreshMarketDataAction(formData: FormData) {
   revalidatePath("/market-data");
 }
 
+export async function importMarketSessionFeaturesAction(formData: FormData) {
+  await requireUser();
+
+  const instrumentId = String(formData.get("instrumentId") ?? "").trim();
+  const rawCsv = String(formData.get("sessionFeatureCsv") ?? "").trim();
+  const instrument = await getInstrument(instrumentId);
+
+  if (!instrument) {
+    throw new Error("Choose a valid instrument.");
+  }
+
+  if (!instrument.yahooSymbol) {
+    throw new Error("Instrument needs a Yahoo symbol before feature import.");
+  }
+
+  if (!rawCsv) {
+    throw new Error("Paste opening-range CSV rows before importing.");
+  }
+
+  const { parseMarketSessionFeatureCsv } = await import(
+    "@/lib/market/session-feature-import"
+  );
+  const parsed = parseMarketSessionFeatureCsv(rawCsv);
+
+  for (const feature of parsed.features) {
+    await upsertMarketSessionFeature({
+      instrumentId: instrument.id,
+      yahooSymbol: instrument.yahooSymbol,
+      ...feature,
+    });
+  }
+
+  revalidatePath("/market-data");
+  revalidatePath("/runs");
+  revalidatePath("/compare");
+  revalidatePath("/analysis");
+}
+
 async function refreshIntradaySessionFeatures({
   instrumentId,
   yahooSymbol,
