@@ -1,6 +1,7 @@
 import type { DailyRunMetric, RunMetrics } from "@/lib/analytics";
 import { client, ensureSchema } from "@/lib/db/client";
 import type { NormalizedTradeSummary } from "@/lib/imports/ninjatrader";
+import { comparisonScopeForRun, routingScopeForRun } from "@/lib/run-grouping";
 
 export type RunSummary = {
   id: string;
@@ -813,6 +814,16 @@ export async function listComboSourceRuns(): Promise<ComboSourceRun[]> {
 }
 
 export async function listComparisonGroups(): Promise<ComparisonGroup[]> {
+  return listRunGroups("comparison");
+}
+
+export async function listModeRoutingGroups(): Promise<ComparisonGroup[]> {
+  return listRunGroups("routing");
+}
+
+async function listRunGroups(
+  purpose: "comparison" | "routing",
+): Promise<ComparisonGroup[]> {
   const runs = await listRuns();
   const runDetails: ComparisonRun[] = [];
 
@@ -824,7 +835,10 @@ export async function listComparisonGroups(): Promise<ComparisonGroup[]> {
   }
 
   const groups = runDetails.reduce((map, run) => {
-    const scope = `${run.botName} / ${run.instrumentSymbol} / ${run.timeframe}`;
+    const scope =
+      purpose === "comparison"
+        ? comparisonScopeForRun(run)
+        : routingScopeForRun(run);
     const scopedRuns = map.get(scope) ?? [];
     scopedRuns.push(run);
     map.set(scope, scopedRuns);
@@ -887,7 +901,7 @@ export async function saveSwitchRule(input: {
       input.timeframe,
       input.modeARunId,
       input.modeBRunId,
-      input.name.trim() || "Untitled switch rule",
+      input.name.trim() || "Untitled routing rule",
       input.ruleJson,
       input.metricsJson,
       now,

@@ -1,11 +1,8 @@
 import { ComparisonWorkbench } from "@/components/comparison-workbench";
-import { getAnalysisSettings, listComparisonGroups } from "@/lib/db/repository";
+import { listComparisonGroups } from "@/lib/db/repository";
 
 export default async function ComparePage() {
-  const [groups, analysisSettings] = await Promise.all([
-    listComparisonGroups(),
-    getAnalysisSettings(),
-  ]);
+  const groups = await listComparisonGroups();
 
   return (
     <div className="grid gap-6">
@@ -13,15 +10,12 @@ export default async function ComparePage() {
         <div>
           <h1>Compare</h1>
           <p>
-            Explore run quality through daily overlays, filters, box plots, and
-            outlier shape.
+            Diagnose run changes inside the same bot mode with daily overlays,
+            filters, box plots, and outlier shape.
           </p>
         </div>
       </section>
-      <ComparisonWorkbench
-        analysisSettings={analysisSettings}
-        groups={groups}
-      />
+      <ComparisonWorkbench groups={groups} />
     </div>
   );
 }

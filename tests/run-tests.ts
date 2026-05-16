@@ -8,3 +8,4 @@ import "@/tests/market-session-features.test";
 import "@/tests/ninjatrader.test";
 import "@/tests/regime-discovery.test";
 import "@/tests/regime-features.test";
+import "@/tests/run-grouping.test";

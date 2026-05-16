@@ -48,20 +48,14 @@ import {
 
 const dayBuckets: Array<{ value: DayBucket; label: string }> = [
   { value: "all", label: "All" },
-  { value: "candidate-wins", label: "Mode B beats" },
-  { value: "golden-wins", label: "Mode A beats" },
+  { value: "candidate-wins", label: "Candidate beats" },
+  { value: "golden-wins", label: "Baseline beats" },
   { value: "both-win", label: "Both win" },
   { value: "both-loss", label: "Both loss" },
   { value: "disagreement", label: "Disagree" },
 ];
 
-export function ComparisonWorkbench({
-  groups,
-  analysisSettings,
-}: {
-  groups: ComparisonGroup[];
-  analysisSettings: AnalysisSettings;
-}) {
+export function ComparisonWorkbench({ groups }: { groups: ComparisonGroup[] }) {
   const [groupIndex, setGroupIndex] = useState(0);
   const group = groups[groupIndex] ?? groups[0];
   const defaultModeA =
@@ -153,7 +147,7 @@ export function ComparisonWorkbench({
           </select>
         </label>
         <div className="grid gap-2">
-          <span className="label-text">Mode A</span>
+          <span className="label-text">Baseline run</span>
           <select
             className="input"
             onChange={(event) => {
@@ -184,7 +178,7 @@ export function ComparisonWorkbench({
           <span className="quiet-text text-xs">{formatCoverage(golden)}</span>
         </div>
         <label className="grid gap-2">
-          <span className="label-text">Mode B</span>
+          <span className="label-text">Candidate run</span>
           <select
             className="input"
             onChange={(event) =>
@@ -212,15 +206,15 @@ export function ComparisonWorkbench({
           <h2 className="strong-text text-base font-bold">Comparison period</h2>
           <p className="quiet-text mt-1 text-sm">
             {alignmentMode === "overlap"
-              ? `${alignedDays.length} shared trading days are included. ${countSingleRunDays(unionAlignedDays, "golden")} Mode A-only and ${countSingleRunDays(unionAlignedDays, "candidate")} Mode B-only days are excluded.`
+              ? `${alignedDays.length} shared trading days are included. ${countSingleRunDays(unionAlignedDays, "golden")} baseline-only and ${countSingleRunDays(unionAlignedDays, "candidate")} candidate-only days are excluded.`
               : `${alignedDays.length} union trading days are included, with missing run days treated as zero PnL.`}
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
             <span className="rounded-sm border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-amber-200">
-              Mode A {formatCoverage(golden)}
+              Baseline {formatCoverage(golden)}
             </span>
             <span className="rounded-sm border border-sky-400/25 bg-sky-400/10 px-2 py-1 text-sky-200">
-              Mode B {formatCoverage(candidate)}
+              Candidate {formatCoverage(candidate)}
             </span>
             <span className="rounded-sm border border-teal-400/25 bg-teal-400/10 px-2 py-1 text-teal-200">
               Compared {formatAlignedRange(alignedDays)}
@@ -250,14 +244,6 @@ export function ComparisonWorkbench({
             : "Selected union period"
         }
         periodRuns={scopedRuns}
-      />
-
-      <ModeSwitchLab
-        analysisSettings={analysisSettings}
-        group={group}
-        marketBars={group.marketBars}
-        modeA={golden}
-        modeB={candidate}
       />
 
       <OutperformanceVersus
@@ -464,7 +450,7 @@ function countSingleRunDays(
   ).length;
 }
 
-function ModeSwitchLab({
+export function ModeSwitchLab({
   modeA,
   modeB,
   group,
@@ -545,7 +531,7 @@ function ModeSwitchLab({
     <section className="panel">
       <div className="section-title">
         <div>
-          <h2>Mode switch lab</h2>
+          <h2>Mode routing lab</h2>
           <p>
             {ruleText} routes to Mode A; otherwise {fallbackLabel}. Modes not
             selected by the route are treated as zero exposure.
@@ -619,7 +605,7 @@ function ModeSwitchLab({
       {evaluation.days.length === 0 ? (
         <div className="empty-state">
           Refresh market data, check RSI warmup, or choose runs with overlapping
-          dates to unlock switch simulation.
+          dates to unlock routing simulation.
         </div>
       ) : (
         <div className="grid gap-5">
@@ -641,12 +627,12 @@ function ModeSwitchLab({
 
           <div className="metric-grid">
             <Metric
-              label="Switched PnL"
+              label="Routed PnL"
               tone={evaluation.summary.totalPnl}
               value={formatCurrency(evaluation.summary.totalPnl)}
             />
             <Metric
-              label="Switched drawdown"
+              label="Routed drawdown"
               tone={evaluation.summary.maxDrawdown}
               value={formatCurrency(evaluation.summary.maxDrawdown)}
             />
@@ -735,10 +721,10 @@ function SwitchOutcomeCard({
   return (
     <div className="subtle-card p-4">
       <div className="chart-heading">
-        <span>Switch vs always run</span>
+        <span>Routing vs always run</span>
       </div>
       <div className="grid gap-3">
-        <SwitchMetricRow label="Switch" metrics={summary} />
+        <SwitchMetricRow label="Route" metrics={summary} />
         <SwitchMetricRow label={modeAName} metrics={summary.alwaysA} />
         <SwitchMetricRow label={modeBName} metrics={summary.alwaysB} />
       </div>
@@ -779,7 +765,7 @@ function SavedSwitchRulePanel({
     <div className="subtle-card grid gap-4 p-4 xl:grid-cols-[1fr_1.2fr]">
       <form action={saveSwitchRuleAction} className="grid gap-3">
         <div className="chart-heading">
-          <span>Save switch rule</span>
+          <span>Save routing rule</span>
         </div>
         <input name="botId" type="hidden" value={group.botId} />
         <input name="instrumentId" type="hidden" value={group.instrumentId} />
@@ -809,7 +795,7 @@ function SavedSwitchRulePanel({
         </div>
         {savedRules.length === 0 ? (
           <p className="quiet-text text-sm">
-            No saved switch rules for this exact Mode A / Mode B pair yet.
+            No saved routing rules for this exact Mode A / Mode B pair yet.
           </p>
         ) : (
           <div className="grid gap-2">
@@ -859,7 +845,7 @@ function SavedSwitchRuleRow({ rule }: { rule: SavedSwitchRule }) {
           <input name="switchRuleId" type="hidden" value={rule.id} />
           <button
             className="ghost-button min-h-8 px-2 text-rose-200"
-            title="Delete saved switch rule"
+            title="Delete saved routing rule"
             type="submit"
           >
             <Trash2 aria-hidden size={14} />
@@ -890,7 +876,7 @@ function SwitchCandidateStrip({
     <div className="subtle-card p-4">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div className="chart-heading">
-          <span>RSI rule scan</span>
+          <span>Routing rule scan</span>
         </div>
         <p className="quiet-text text-xs">
           Ranked by improvement over the better always-run mode.
@@ -898,7 +884,7 @@ function SwitchCandidateStrip({
       </div>
       {candidates.length === 0 ? (
         <p className="quiet-text text-sm">
-          No switch rule had enough routed days on both modes yet.
+          No routing rule had enough routed days on both modes yet.
         </p>
       ) : (
         <div className="grid gap-3 lg:grid-cols-3">
@@ -1095,10 +1081,10 @@ function SwitchEquityChart({
     <div className="subtle-card p-4">
       <div className="mb-3 flex flex-wrap justify-between gap-3">
         <div className="chart-heading">
-          <span>Switched equity</span>
+          <span>Routed equity</span>
         </div>
         <div className="quiet-text flex flex-wrap gap-3 text-xs">
-          <span>Switch</span>
+          <span>Route</span>
           <span>{modeAName}</span>
           <span>{modeBName}</span>
         </div>
@@ -1108,7 +1094,7 @@ function SwitchEquityChart({
         role="img"
         viewBox={`0 0 ${width} ${height}`}
       >
-        <title>Switched equity compared with always-running each mode</title>
+        <title>Routed equity compared with always-running each mode</title>
         <line
           stroke="rgba(148, 163, 184, 0.35)"
           x1="0"
@@ -1161,7 +1147,7 @@ function ModeSwitchDayTable({
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
-        <span>Mode switch day table ({days.length})</span>
+        <span>Mode routing day table ({days.length})</span>
         <ChevronDown
           aria-hidden
           className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
@@ -1178,7 +1164,7 @@ function ModeSwitchDayTable({
                 <th>Selected</th>
                 <th>Mode A</th>
                 <th>Mode B</th>
-                <th>Switched</th>
+                <th>Routed</th>
                 <th>Opportunity cost</th>
               </tr>
             </thead>

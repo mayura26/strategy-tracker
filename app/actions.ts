@@ -322,12 +322,12 @@ export async function saveSwitchRuleAction(formData: FormData) {
     timeframe: String(formData.get("timeframe") ?? ""),
     modeARunId: String(formData.get("modeARunId") ?? ""),
     modeBRunId: String(formData.get("modeBRunId") ?? ""),
-    name: name || "Untitled switch rule",
+    name: name || "Untitled routing rule",
     ruleJson,
     metricsJson,
   });
 
-  revalidatePath("/compare");
+  revalidatePath("/combos");
 }
 
 export async function updateComboAction(formData: FormData) {
@@ -389,11 +389,11 @@ export async function deleteSwitchRuleAction(formData: FormData) {
   const id = String(formData.get("switchRuleId") ?? "").trim();
 
   if (!id) {
-    throw new Error("Missing switch rule id.");
+    throw new Error("Missing routing rule id.");
   }
 
   await deleteSwitchRule(id);
-  revalidatePath("/compare");
+  revalidatePath("/combos");
 }
 
 export async function refreshMarketDataAction(formData: FormData) {
@@ -489,6 +489,7 @@ export async function importMarketSessionFeaturesAction(formData: FormData) {
   revalidatePath("/market-data");
   revalidatePath("/runs");
   revalidatePath("/compare");
+  revalidatePath("/combos");
   revalidatePath("/analysis");
 }
 

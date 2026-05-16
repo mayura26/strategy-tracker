@@ -1,14 +1,23 @@
 import Link from "next/link";
 
 import { ComboWorkbench } from "@/components/combo-workbench";
-import { listComboSourceRuns, listSavedCombos } from "@/lib/db/repository";
+import { ModeRoutingLab } from "@/components/mode-routing-lab";
+import {
+  getAnalysisSettings,
+  listComboSourceRuns,
+  listModeRoutingGroups,
+  listSavedCombos,
+} from "@/lib/db/repository";
 import { formatDate } from "@/lib/format";
 
 export default async function CombosPage() {
-  const [runs, savedCombos] = await Promise.all([
-    listComboSourceRuns(),
-    listSavedCombos(),
-  ]);
+  const [runs, savedCombos, routingGroups, analysisSettings] =
+    await Promise.all([
+      listComboSourceRuns(),
+      listSavedCombos(),
+      listModeRoutingGroups(),
+      getAnalysisSettings(),
+    ]);
 
   return (
     <div className="grid gap-6">
@@ -63,7 +72,13 @@ export default async function CombosPage() {
           </div>
         </section>
       ) : (
-        <ComboWorkbench runs={runs} />
+        <div className="grid gap-6">
+          <ModeRoutingLab
+            analysisSettings={analysisSettings}
+            groups={routingGroups}
+          />
+          <ComboWorkbench runs={runs} />
+        </div>
       )}
     </div>
   );
